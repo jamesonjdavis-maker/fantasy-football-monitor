@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-14T16:23:07.361779+00:00",
+  "generated_at": "2026-09-14T17:06:18.395594+00:00",
   "platforms": {
     "espn:A League of Their Own": {
       "enabled": true,
@@ -11,10 +11,11 @@
           "injury_status": "ACTIVE",
           "name": "Harrison Butker",
           "on_bye": false,
-          "percent_owned": 81.2,
+          "percent_owned": 81.19,
           "position": "K",
           "pro_team": "KC",
           "proj_points": 8.75,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -28,6 +29,7 @@
           "position": "D/ST",
           "pro_team": "CLE",
           "proj_points": 6.12,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -41,6 +43,7 @@
           "position": "D/ST",
           "pro_team": "KC",
           "proj_points": 5.9,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -54,6 +57,7 @@
           "position": "K",
           "pro_team": "CHI",
           "proj_points": 8.48,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -67,6 +71,7 @@
           "position": "K",
           "pro_team": "MIN",
           "proj_points": 8.38,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -80,6 +85,7 @@
           "position": "QB",
           "pro_team": "SEA",
           "proj_points": 14.66,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -93,6 +99,7 @@
           "position": "RB",
           "pro_team": "ATL",
           "proj_points": 5.43,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -106,6 +113,7 @@
           "position": "QB",
           "pro_team": "HOU",
           "proj_points": 14.96,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -119,6 +127,7 @@
           "position": "QB",
           "pro_team": "MIA",
           "proj_points": 14.55,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -132,6 +141,7 @@
           "position": "RB",
           "pro_team": "CLE",
           "proj_points": 5.19,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -145,6 +155,7 @@
           "position": "D/ST",
           "pro_team": "GB",
           "proj_points": 5.21,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -158,6 +169,7 @@
           "position": "K",
           "pro_team": "TB",
           "proj_points": 8.36,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -171,6 +183,7 @@
           "position": "RB",
           "pro_team": "SF",
           "proj_points": 6.69,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -184,6 +197,7 @@
           "position": "TE",
           "pro_team": "PIT",
           "proj_points": 8.02,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -197,6 +211,7 @@
           "position": "K",
           "pro_team": "GB",
           "proj_points": 8.48,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -210,6 +225,7 @@
           "position": "WR",
           "pro_team": "LV",
           "proj_points": 7.35,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -223,6 +239,7 @@
           "position": "D/ST",
           "pro_team": "MIN",
           "proj_points": 5.26,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -236,6 +253,7 @@
           "position": "D/ST",
           "pro_team": "TB",
           "proj_points": 5.42,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -249,6 +267,7 @@
           "position": "RB",
           "pro_team": "NYJ",
           "proj_points": 7.27,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -262,6 +281,7 @@
           "position": "D/ST",
           "pro_team": "DAL",
           "proj_points": 4.5,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -275,6 +295,7 @@
           "position": "RB",
           "pro_team": "NYG",
           "proj_points": 0.0,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -288,6 +309,7 @@
           "position": "D/ST",
           "pro_team": "TEN",
           "proj_points": 4.01,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -301,6 +323,7 @@
           "position": "RB",
           "pro_team": "GB",
           "proj_points": 4.2,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -314,6 +337,7 @@
           "position": "WR",
           "pro_team": "SEA",
           "proj_points": 7.32,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -327,6 +351,7 @@
           "position": "QB",
           "pro_team": "CAR",
           "proj_points": 14.5,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -340,6 +365,7 @@
           "position": "WR",
           "pro_team": "NYG",
           "proj_points": 6.14,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -353,6 +379,7 @@
           "position": "WR",
           "pro_team": "PHI",
           "proj_points": 6.41,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -366,6 +393,7 @@
           "position": "RB",
           "pro_team": "BUF",
           "proj_points": 2.41,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -379,6 +407,7 @@
           "position": "QB",
           "pro_team": "TEN",
           "proj_points": 13.37,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -388,10 +417,11 @@
           "injury_status": "ACTIVE",
           "name": "Rashod Bateman",
           "on_bye": false,
-          "percent_owned": 8.83,
+          "percent_owned": 8.82,
           "position": "WR",
           "pro_team": "BAL",
           "proj_points": 7.2,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -405,6 +435,7 @@
           "position": "K",
           "pro_team": "PHI",
           "proj_points": 7.98,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -418,6 +449,7 @@
           "position": "TE",
           "pro_team": "WSH",
           "proj_points": 7.09,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -431,6 +463,7 @@
           "position": "WR",
           "pro_team": "MIN",
           "proj_points": 6.75,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -444,6 +477,7 @@
           "position": "QB",
           "pro_team": "LV",
           "proj_points": 12.94,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -457,6 +491,7 @@
           "position": "WR",
           "pro_team": "MIA",
           "proj_points": 6.05,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -470,6 +505,7 @@
           "position": "QB",
           "pro_team": "PIT",
           "proj_points": 13.36,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -483,6 +519,7 @@
           "position": "D/ST",
           "pro_team": "SF",
           "proj_points": 4.63,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -496,6 +533,7 @@
           "position": "TE",
           "pro_team": "SEA",
           "proj_points": 6.68,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -505,10 +543,11 @@
           "injury_status": "ACTIVE",
           "name": "Emmett Johnson",
           "on_bye": false,
-          "percent_owned": 6.63,
+          "percent_owned": 6.64,
           "position": "RB",
           "pro_team": "KC",
           "proj_points": 3.17,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -518,10 +557,11 @@
           "injury_status": "ACTIVE",
           "name": "Chris Bell",
           "on_bye": false,
-          "percent_owned": 6.59,
+          "percent_owned": 6.58,
           "position": "WR",
           "pro_team": "MIA",
           "proj_points": 7.11,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -535,6 +575,7 @@
           "position": "RB",
           "pro_team": "GB",
           "proj_points": 0.0,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -548,6 +589,7 @@
           "position": "K",
           "pro_team": "DEN",
           "proj_points": 7.99,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -561,6 +603,7 @@
           "position": "RB",
           "pro_team": "NYG",
           "proj_points": 2.41,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -574,6 +617,7 @@
           "position": "WR",
           "pro_team": "PIT",
           "proj_points": 6.39,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -587,6 +631,7 @@
           "position": "TE",
           "pro_team": "TEN",
           "proj_points": 7.46,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -600,6 +645,7 @@
           "position": "D/ST",
           "pro_team": "NYJ",
           "proj_points": 4.78,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -613,6 +659,7 @@
           "position": "QB",
           "pro_team": "ARI",
           "proj_points": 13.86,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -622,10 +669,11 @@
           "injury_status": "QUESTIONABLE",
           "name": "Omar Cooper Jr.",
           "on_bye": false,
-          "percent_owned": 5.06,
+          "percent_owned": 5.05,
           "position": "WR",
           "pro_team": "NYJ",
           "proj_points": 2.02,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -639,6 +687,7 @@
           "position": "K",
           "pro_team": "BUF",
           "proj_points": 8.05,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -652,6 +701,7 @@
           "position": "D/ST",
           "pro_team": "BUF",
           "proj_points": 3.59,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -665,6 +715,7 @@
           "position": "TE",
           "pro_team": "LAC",
           "proj_points": 6.15,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -678,6 +729,7 @@
           "position": "K",
           "pro_team": "ATL",
           "proj_points": 8.3,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -691,6 +743,7 @@
           "position": "WR",
           "pro_team": "NYG",
           "proj_points": 3.97,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -704,6 +757,7 @@
           "position": "WR",
           "pro_team": "NONE",
           "proj_points": 0.0,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -717,6 +771,7 @@
           "position": "WR",
           "pro_team": "ATL",
           "proj_points": 4.73,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -730,6 +785,7 @@
           "position": "WR",
           "pro_team": "DAL",
           "proj_points": 5.27,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -743,6 +799,7 @@
           "position": "QB",
           "pro_team": "NYJ",
           "proj_points": 14.13,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -756,6 +813,7 @@
           "position": "WR",
           "pro_team": "LAC",
           "proj_points": 5.3,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -769,6 +827,7 @@
           "position": "WR",
           "pro_team": "KC",
           "proj_points": 3.12,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -782,6 +841,7 @@
           "position": "K",
           "pro_team": "IND",
           "proj_points": 8.2,
+          "recent_points": [],
           "slot": "free_agent"
         }
       ],
@@ -801,7 +861,12 @@
           "percent_owned": -1.0,
           "position": "RB",
           "pro_team": "IND",
+          "proj_ceiling": 29.0,
+          "proj_floor": 7.4,
+          "proj_label": "balanced",
+          "proj_median": 16.5,
           "proj_points": 17.75,
+          "recent_points": [],
           "slot": "starter"
         },
         {
@@ -814,7 +879,12 @@
           "percent_owned": -1.0,
           "position": "RB",
           "pro_team": "ARI",
+          "proj_ceiling": 25.9,
+          "proj_floor": 3.9,
+          "proj_label": "boom/bust",
+          "proj_median": 12.4,
           "proj_points": 13.86,
+          "recent_points": [],
           "slot": "starter"
         },
         {
@@ -827,7 +897,12 @@
           "percent_owned": -1.0,
           "position": "WR",
           "pro_team": "CAR",
+          "proj_ceiling": 24.7,
+          "proj_floor": 5.8,
+          "proj_label": "balanced",
+          "proj_median": 14.0,
           "proj_points": 14.78,
+          "recent_points": [],
           "slot": "starter"
         },
         {
@@ -840,7 +915,12 @@
           "percent_owned": -1.0,
           "position": "WR",
           "pro_team": "LAR",
+          "proj_ceiling": 25.7,
+          "proj_floor": 3.5,
+          "proj_label": "boom/bust",
+          "proj_median": 12.5,
           "proj_points": 13.82,
+          "recent_points": [],
           "slot": "starter"
         },
         {
@@ -853,7 +933,12 @@
           "percent_owned": -1.0,
           "position": "TE",
           "pro_team": "IND",
+          "proj_ceiling": 22.8,
+          "proj_floor": 3.1,
+          "proj_label": "boom/bust",
+          "proj_median": 11.2,
           "proj_points": 12.22,
+          "recent_points": [],
           "slot": "starter"
         },
         {
@@ -866,7 +951,12 @@
           "percent_owned": -1.0,
           "position": "WR",
           "pro_team": "PIT",
+          "proj_ceiling": 23.1,
+          "proj_floor": 3.1,
+          "proj_label": "boom/bust",
+          "proj_median": 11.0,
           "proj_points": 12.31,
+          "recent_points": [],
           "slot": "starter"
         },
         {
@@ -879,7 +969,12 @@
           "percent_owned": -1.0,
           "position": "WR",
           "pro_team": "JAX",
+          "proj_ceiling": 21.1,
+          "proj_floor": 2.9,
+          "proj_label": "boom/bust",
+          "proj_median": 10.3,
           "proj_points": 11.34,
+          "recent_points": [],
           "slot": "bench"
         },
         {
@@ -892,7 +987,12 @@
           "percent_owned": -1.0,
           "position": "RB",
           "pro_team": "CAR",
+          "proj_ceiling": 23.1,
+          "proj_floor": 3.5,
+          "proj_label": "boom/bust",
+          "proj_median": 11.0,
           "proj_points": 12.22,
+          "recent_points": [],
           "slot": "bench"
         },
         {
@@ -905,7 +1005,12 @@
           "percent_owned": -1.0,
           "position": "QB",
           "pro_team": "SF",
+          "proj_ceiling": 23.6,
+          "proj_floor": 7.6,
+          "proj_label": "balanced",
+          "proj_median": 15.5,
           "proj_points": 15.48,
+          "recent_points": [],
           "slot": "starter"
         },
         {
@@ -918,7 +1023,12 @@
           "percent_owned": -1.0,
           "position": "WR",
           "pro_team": "IND",
+          "proj_ceiling": 17.0,
+          "proj_floor": 2.5,
+          "proj_label": "boom/bust",
+          "proj_median": 8.1,
           "proj_points": 9.11,
+          "recent_points": [],
           "slot": "bench"
         },
         {
@@ -931,7 +1041,12 @@
           "percent_owned": -1.0,
           "position": "WR",
           "pro_team": "SF",
+          "proj_ceiling": 18.0,
+          "proj_floor": 1.8,
+          "proj_label": "boom/bust",
+          "proj_median": 7.6,
           "proj_points": 8.92,
+          "recent_points": [],
           "slot": "bench"
         },
         {
@@ -945,6 +1060,7 @@
           "position": "RB",
           "pro_team": "DET",
           "proj_points": 0.0,
+          "recent_points": [],
           "slot": "ir"
         },
         {
@@ -957,7 +1073,12 @@
           "percent_owned": -1.0,
           "position": "TE",
           "pro_team": "MIN",
+          "proj_ceiling": 17.0,
+          "proj_floor": 2.5,
+          "proj_label": "boom/bust",
+          "proj_median": 8.5,
           "proj_points": 9.2,
+          "recent_points": [],
           "slot": "bench"
         },
         {
@@ -971,6 +1092,7 @@
           "position": "K",
           "pro_team": "LAR",
           "proj_points": 9.41,
+          "recent_points": [],
           "slot": "starter"
         },
         {
@@ -984,6 +1106,7 @@
           "position": "D/ST",
           "pro_team": "DET",
           "proj_points": 7.31,
+          "recent_points": [],
           "slot": "starter"
         },
         {
@@ -996,7 +1119,12 @@
           "percent_owned": -1.0,
           "position": "WR",
           "pro_team": "NO",
+          "proj_ceiling": 17.5,
+          "proj_floor": 2.3,
+          "proj_label": "boom/bust",
+          "proj_median": 8.4,
           "proj_points": 9.31,
+          "recent_points": [],
           "slot": "bench"
         },
         {
@@ -1009,7 +1137,12 @@
           "percent_owned": -1.0,
           "position": "TE",
           "pro_team": "LV",
+          "proj_ceiling": 17.0,
+          "proj_floor": 2.4,
+          "proj_label": "boom/bust",
+          "proj_median": 8.7,
           "proj_points": 9.32,
+          "recent_points": [],
           "slot": "bench"
         }
       ],
@@ -1028,10 +1161,11 @@
           "injury_status": "ACTIVE",
           "name": "Chris Boswell",
           "on_bye": false,
-          "percent_owned": 39.2,
+          "percent_owned": 39.19,
           "position": "K",
           "pro_team": "PIT",
           "proj_points": 8.4,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -1045,6 +1179,7 @@
           "position": "D/ST",
           "pro_team": "KC",
           "proj_points": 5.9,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -1054,10 +1189,11 @@
           "injury_status": "IR",
           "name": "Isiah Pacheco",
           "on_bye": false,
-          "percent_owned": 33.43,
+          "percent_owned": 33.42,
           "position": "RB",
           "pro_team": "DET",
           "proj_points": 0.0,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -1071,6 +1207,7 @@
           "position": "RB",
           "pro_team": "DEN",
           "proj_points": 4.38,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -1084,6 +1221,7 @@
           "position": "QB",
           "pro_team": "SEA",
           "proj_points": 14.66,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -1097,6 +1235,7 @@
           "position": "QB",
           "pro_team": "HOU",
           "proj_points": 14.96,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -1110,6 +1249,7 @@
           "position": "WR",
           "pro_team": "CLE",
           "proj_points": 8.38,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -1123,6 +1263,7 @@
           "position": "TE",
           "pro_team": "JAX",
           "proj_points": 8.38,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -1136,6 +1277,7 @@
           "position": "K",
           "pro_team": "CIN",
           "proj_points": 8.35,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -1149,6 +1291,7 @@
           "position": "RB",
           "pro_team": "PHI",
           "proj_points": 3.95,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -1162,6 +1305,7 @@
           "position": "RB",
           "pro_team": "CLE",
           "proj_points": 5.19,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -1175,6 +1319,7 @@
           "position": "WR",
           "pro_team": "BAL",
           "proj_points": 6.49,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -1188,6 +1333,7 @@
           "position": "D/ST",
           "pro_team": "GB",
           "proj_points": 5.21,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -1201,6 +1347,7 @@
           "position": "K",
           "pro_team": "TB",
           "proj_points": 8.36,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -1214,6 +1361,7 @@
           "position": "WR",
           "pro_team": "HOU",
           "proj_points": 7.18,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -1227,6 +1375,7 @@
           "position": "TE",
           "pro_team": "PIT",
           "proj_points": 8.02,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -1240,6 +1389,7 @@
           "position": "K",
           "pro_team": "GB",
           "proj_points": 8.48,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -1253,6 +1403,7 @@
           "position": "D/ST",
           "pro_team": "MIN",
           "proj_points": 5.26,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -1266,6 +1417,7 @@
           "position": "WR",
           "pro_team": "NO",
           "proj_points": 7.25,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -1279,6 +1431,7 @@
           "position": "D/ST",
           "pro_team": "TB",
           "proj_points": 5.42,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -1292,6 +1445,7 @@
           "position": "D/ST",
           "pro_team": "DAL",
           "proj_points": 4.5,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -1305,6 +1459,7 @@
           "position": "RB",
           "pro_team": "CIN",
           "proj_points": 5.89,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -1318,6 +1473,7 @@
           "position": "RB",
           "pro_team": "NYG",
           "proj_points": 0.0,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -1331,6 +1487,7 @@
           "position": "QB",
           "pro_team": "CAR",
           "proj_points": 14.5,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -1344,6 +1501,7 @@
           "position": "WR",
           "pro_team": "NYG",
           "proj_points": 6.14,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -1357,6 +1515,7 @@
           "position": "D/ST",
           "pro_team": "CHI",
           "proj_points": 4.13,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -1370,6 +1529,7 @@
           "position": "QB",
           "pro_team": "TEN",
           "proj_points": 13.37,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -1379,10 +1539,11 @@
           "injury_status": "ACTIVE",
           "name": "Rashod Bateman",
           "on_bye": false,
-          "percent_owned": 8.83,
+          "percent_owned": 8.82,
           "position": "WR",
           "pro_team": "BAL",
           "proj_points": 7.2,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -1396,6 +1557,7 @@
           "position": "K",
           "pro_team": "PHI",
           "proj_points": 7.98,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -1409,6 +1571,7 @@
           "position": "TE",
           "pro_team": "WSH",
           "proj_points": 7.09,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -1422,6 +1585,7 @@
           "position": "QB",
           "pro_team": "LV",
           "proj_points": 12.94,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -1435,6 +1599,7 @@
           "position": "WR",
           "pro_team": "HOU",
           "proj_points": 6.7,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -1448,6 +1613,7 @@
           "position": "WR",
           "pro_team": "MIA",
           "proj_points": 6.05,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -1461,6 +1627,7 @@
           "position": "QB",
           "pro_team": "PIT",
           "proj_points": 13.36,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -1474,6 +1641,7 @@
           "position": "D/ST",
           "pro_team": "SF",
           "proj_points": 4.63,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -1483,10 +1651,11 @@
           "injury_status": "ACTIVE",
           "name": "Emmett Johnson",
           "on_bye": false,
-          "percent_owned": 6.63,
+          "percent_owned": 6.64,
           "position": "RB",
           "pro_team": "KC",
           "proj_points": 3.17,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -1496,10 +1665,11 @@
           "injury_status": "ACTIVE",
           "name": "Chris Bell",
           "on_bye": false,
-          "percent_owned": 6.59,
+          "percent_owned": 6.58,
           "position": "WR",
           "pro_team": "MIA",
           "proj_points": 7.11,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -1513,6 +1683,7 @@
           "position": "K",
           "pro_team": "DEN",
           "proj_points": 7.99,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -1526,6 +1697,7 @@
           "position": "RB",
           "pro_team": "NYG",
           "proj_points": 2.41,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -1539,6 +1711,7 @@
           "position": "WR",
           "pro_team": "PIT",
           "proj_points": 6.39,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -1552,6 +1725,7 @@
           "position": "TE",
           "pro_team": "TEN",
           "proj_points": 7.46,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -1565,6 +1739,7 @@
           "position": "D/ST",
           "pro_team": "NYJ",
           "proj_points": 4.78,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -1578,6 +1753,7 @@
           "position": "QB",
           "pro_team": "ARI",
           "proj_points": 13.86,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -1587,10 +1763,11 @@
           "injury_status": "QUESTIONABLE",
           "name": "Omar Cooper Jr.",
           "on_bye": false,
-          "percent_owned": 5.06,
+          "percent_owned": 5.05,
           "position": "WR",
           "pro_team": "NYJ",
           "proj_points": 2.02,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -1604,6 +1781,7 @@
           "position": "K",
           "pro_team": "BUF",
           "proj_points": 8.05,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -1617,6 +1795,7 @@
           "position": "D/ST",
           "pro_team": "BUF",
           "proj_points": 3.59,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -1630,6 +1809,7 @@
           "position": "TE",
           "pro_team": "LAC",
           "proj_points": 6.15,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -1643,6 +1823,7 @@
           "position": "K",
           "pro_team": "ATL",
           "proj_points": 8.3,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -1656,6 +1837,7 @@
           "position": "WR",
           "pro_team": "NYG",
           "proj_points": 3.97,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -1669,6 +1851,7 @@
           "position": "WR",
           "pro_team": "NONE",
           "proj_points": 0.0,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -1682,6 +1865,7 @@
           "position": "WR",
           "pro_team": "ATL",
           "proj_points": 4.73,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -1695,6 +1879,7 @@
           "position": "RB",
           "pro_team": "SEA",
           "proj_points": 2.64,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -1708,6 +1893,7 @@
           "position": "WR",
           "pro_team": "DAL",
           "proj_points": 5.27,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -1721,6 +1907,7 @@
           "position": "QB",
           "pro_team": "NYJ",
           "proj_points": 14.13,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -1734,6 +1921,7 @@
           "position": "WR",
           "pro_team": "LAC",
           "proj_points": 5.3,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -1747,6 +1935,7 @@
           "position": "WR",
           "pro_team": "KC",
           "proj_points": 3.12,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -1760,6 +1949,7 @@
           "position": "K",
           "pro_team": "IND",
           "proj_points": 8.2,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -1773,6 +1963,7 @@
           "position": "TE",
           "pro_team": "CAR",
           "proj_points": 6.72,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -1786,6 +1977,7 @@
           "position": "QB",
           "pro_team": "LV",
           "proj_points": 6.6,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -1799,6 +1991,7 @@
           "position": "TE",
           "pro_team": "MIA",
           "proj_points": 6.94,
+          "recent_points": [],
           "slot": "free_agent"
         }
       ],
@@ -1818,7 +2011,12 @@
           "percent_owned": -1.0,
           "position": "RB",
           "pro_team": "IND",
+          "proj_ceiling": 28.8,
+          "proj_floor": 7.2,
+          "proj_label": "balanced",
+          "proj_median": 16.3,
           "proj_points": 17.75,
+          "recent_points": [],
           "slot": "starter"
         },
         {
@@ -1831,7 +2029,12 @@
           "percent_owned": -1.0,
           "position": "WR",
           "pro_team": "KC",
+          "proj_ceiling": 24.3,
+          "proj_floor": 5.2,
+          "proj_label": "balanced",
+          "proj_median": 13.6,
           "proj_points": 14.36,
+          "recent_points": [],
           "slot": "starter"
         },
         {
@@ -1844,7 +2047,12 @@
           "percent_owned": -1.0,
           "position": "WR",
           "pro_team": "NYJ",
+          "proj_ceiling": 25.1,
+          "proj_floor": 5.7,
+          "proj_label": "balanced",
+          "proj_median": 14.4,
           "proj_points": 14.78,
+          "recent_points": [],
           "slot": "starter"
         },
         {
@@ -1857,7 +2065,12 @@
           "percent_owned": -1.0,
           "position": "RB",
           "pro_team": "NYG",
+          "proj_ceiling": 25.6,
+          "proj_floor": 3.7,
+          "proj_label": "boom/bust",
+          "proj_median": 12.0,
           "proj_points": 13.71,
+          "recent_points": [],
           "slot": "starter"
         },
         {
@@ -1870,7 +2083,12 @@
           "percent_owned": -1.0,
           "position": "WR",
           "pro_team": "CHI",
+          "proj_ceiling": 23.1,
+          "proj_floor": 3.2,
+          "proj_label": "boom/bust",
+          "proj_median": 11.2,
           "proj_points": 12.4,
+          "recent_points": [],
           "slot": "starter"
         },
         {
@@ -1883,7 +2101,12 @@
           "percent_owned": -1.0,
           "position": "TE",
           "pro_team": "CLE",
+          "proj_ceiling": 20.4,
+          "proj_floor": 2.8,
+          "proj_label": "boom/bust",
+          "proj_median": 10.3,
           "proj_points": 11.12,
+          "recent_points": [],
           "slot": "starter"
         },
         {
@@ -1896,7 +2119,12 @@
           "percent_owned": -1.0,
           "position": "QB",
           "pro_team": "JAX",
+          "proj_ceiling": 25.3,
+          "proj_floor": 8.0,
+          "proj_label": "balanced",
+          "proj_median": 16.6,
           "proj_points": 16.91,
+          "recent_points": [],
           "slot": "starter"
         },
         {
@@ -1909,7 +2137,12 @@
           "percent_owned": -1.0,
           "position": "WR",
           "pro_team": "JAX",
+          "proj_ceiling": 19.4,
+          "proj_floor": 2.6,
+          "proj_label": "boom/bust",
+          "proj_median": 9.4,
           "proj_points": 10.41,
+          "recent_points": [],
           "slot": "bench"
         },
         {
@@ -1922,7 +2155,12 @@
           "percent_owned": -1.0,
           "position": "RB",
           "pro_team": "CAR",
+          "proj_ceiling": 23.2,
+          "proj_floor": 3.5,
+          "proj_label": "boom/bust",
+          "proj_median": 11.1,
           "proj_points": 12.22,
+          "recent_points": [],
           "slot": "bench"
         },
         {
@@ -1935,7 +2173,12 @@
           "percent_owned": -1.0,
           "position": "TE",
           "pro_team": "MIN",
+          "proj_ceiling": 17.0,
+          "proj_floor": 2.3,
+          "proj_label": "boom/bust",
+          "proj_median": 8.6,
           "proj_points": 9.2,
+          "recent_points": [],
           "slot": "bench"
         },
         {
@@ -1948,7 +2191,12 @@
           "percent_owned": -1.0,
           "position": "WR",
           "pro_team": "WSH",
+          "proj_ceiling": 18.0,
+          "proj_floor": 2.6,
+          "proj_label": "boom/bust",
+          "proj_median": 8.7,
           "proj_points": 9.7,
+          "recent_points": [],
           "slot": "bench"
         },
         {
@@ -1961,7 +2209,12 @@
           "percent_owned": -1.0,
           "position": "WR",
           "pro_team": "IND",
+          "proj_ceiling": 17.2,
+          "proj_floor": 2.4,
+          "proj_label": "boom/bust",
+          "proj_median": 8.2,
           "proj_points": 9.11,
+          "recent_points": [],
           "slot": "bench"
         },
         {
@@ -1974,7 +2227,12 @@
           "percent_owned": -1.0,
           "position": "QB",
           "pro_team": "DET",
+          "proj_ceiling": 24.0,
+          "proj_floor": 7.6,
+          "proj_label": "balanced",
+          "proj_median": 15.9,
           "proj_points": 15.78,
+          "recent_points": [],
           "slot": "bench"
         },
         {
@@ -1988,6 +2246,7 @@
           "position": "D/ST",
           "pro_team": "BAL",
           "proj_points": 6.65,
+          "recent_points": [],
           "slot": "starter"
         },
         {
@@ -2001,6 +2260,7 @@
           "position": "K",
           "pro_team": "KC",
           "proj_points": 8.51,
+          "recent_points": [],
           "slot": "starter"
         },
         {
@@ -2013,7 +2273,12 @@
           "percent_owned": -1.0,
           "position": "TE",
           "pro_team": "LV",
+          "proj_ceiling": 17.1,
+          "proj_floor": 2.3,
+          "proj_label": "boom/bust",
+          "proj_median": 8.7,
           "proj_points": 9.32,
+          "recent_points": [],
           "slot": "bench"
         }
       ],
@@ -2036,6 +2301,7 @@
           "position": "QB",
           "pro_team": "DEN",
           "proj_points": 17.99,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -2049,6 +2315,7 @@
           "position": "D/ST",
           "pro_team": "DET",
           "proj_points": 6.36,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -2062,6 +2329,7 @@
           "position": "D/ST",
           "pro_team": "JAX",
           "proj_points": 4.54,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -2075,6 +2343,7 @@
           "position": "QB",
           "pro_team": "MIN",
           "proj_points": 17.24,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -2088,6 +2357,7 @@
           "position": "D/ST",
           "pro_team": "LAC",
           "proj_points": 5.55,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -2097,10 +2367,11 @@
           "injury_status": "ACTIVE",
           "name": "Hunter Henry",
           "on_bye": false,
-          "percent_owned": 54.67,
+          "percent_owned": 54.66,
           "position": "TE",
           "pro_team": "NE",
           "proj_points": 9.19,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -2110,10 +2381,11 @@
           "injury_status": "ACTIVE",
           "name": "Juwan Johnson",
           "on_bye": false,
-          "percent_owned": 51.72,
+          "percent_owned": 51.71,
           "position": "TE",
           "pro_team": "NO",
           "proj_points": 8.63,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -2127,6 +2399,7 @@
           "position": "QB",
           "pro_team": "GB",
           "proj_points": 15.94,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -2140,6 +2413,7 @@
           "position": "RB",
           "pro_team": "ARI",
           "proj_points": 5.5,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -2149,10 +2423,11 @@
           "injury_status": "ACTIVE",
           "name": "Chris Boswell",
           "on_bye": false,
-          "percent_owned": 39.2,
+          "percent_owned": 39.19,
           "position": "K",
           "pro_team": "PIT",
           "proj_points": 8.4,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -2166,6 +2441,7 @@
           "position": "RB",
           "pro_team": "LV",
           "proj_points": 3.98,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -2179,6 +2455,7 @@
           "position": "WR",
           "pro_team": "NO",
           "proj_points": 9.99,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -2192,6 +2469,7 @@
           "position": "QB",
           "pro_team": "IND",
           "proj_points": 16.2,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -2201,10 +2479,11 @@
           "injury_status": "ACTIVE",
           "name": "Kenyon Sadiq",
           "on_bye": false,
-          "percent_owned": 34.83,
+          "percent_owned": 34.82,
           "position": "TE",
           "pro_team": "NYJ",
           "proj_points": 8.66,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -2218,6 +2497,7 @@
           "position": "K",
           "pro_team": "CHI",
           "proj_points": 8.48,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -2227,10 +2507,11 @@
           "injury_status": "IR",
           "name": "Isiah Pacheco",
           "on_bye": false,
-          "percent_owned": 33.43,
+          "percent_owned": 33.42,
           "position": "RB",
           "pro_team": "DET",
           "proj_points": 0.0,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -2244,6 +2525,7 @@
           "position": "K",
           "pro_team": "MIN",
           "proj_points": 8.38,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -2253,10 +2535,11 @@
           "injury_status": "ACTIVE",
           "name": "Tre Tucker",
           "on_bye": false,
-          "percent_owned": 32.22,
+          "percent_owned": 32.21,
           "position": "WR",
           "pro_team": "LV",
           "proj_points": 8.15,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -2266,10 +2549,11 @@
           "injury_status": "ACTIVE",
           "name": "Chris Rodriguez Jr.",
           "on_bye": false,
-          "percent_owned": 30.78,
+          "percent_owned": 30.77,
           "position": "RB",
           "pro_team": "JAX",
           "proj_points": 4.28,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -2283,6 +2567,7 @@
           "position": "RB",
           "pro_team": "DEN",
           "proj_points": 4.38,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -2296,6 +2581,7 @@
           "position": "WR",
           "pro_team": "IND",
           "proj_points": 7.3,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -2305,10 +2591,11 @@
           "injury_status": "ACTIVE",
           "name": "Terrance Ferguson",
           "on_bye": false,
-          "percent_owned": 27.49,
+          "percent_owned": 27.48,
           "position": "TE",
           "pro_team": "LAR",
           "proj_points": 6.22,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -2318,10 +2605,11 @@
           "injury_status": "ACTIVE",
           "name": "Jerry Jeudy",
           "on_bye": false,
-          "percent_owned": 26.51,
+          "percent_owned": 26.5,
           "position": "WR",
           "pro_team": "CLE",
           "proj_points": 8.23,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -2335,6 +2623,7 @@
           "position": "QB",
           "pro_team": "SEA",
           "proj_points": 14.66,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -2348,6 +2637,7 @@
           "position": "RB",
           "pro_team": "ATL",
           "proj_points": 5.43,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -2361,6 +2651,7 @@
           "position": "QB",
           "pro_team": "HOU",
           "proj_points": 14.96,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -2374,6 +2665,7 @@
           "position": "WR",
           "pro_team": "CLE",
           "proj_points": 8.38,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -2387,6 +2679,7 @@
           "position": "WR",
           "pro_team": "TEN",
           "proj_points": 7.96,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -2400,6 +2693,7 @@
           "position": "TE",
           "pro_team": "JAX",
           "proj_points": 8.38,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -2413,6 +2707,7 @@
           "position": "K",
           "pro_team": "CIN",
           "proj_points": 8.35,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -2426,6 +2721,7 @@
           "position": "RB",
           "pro_team": "LAC",
           "proj_points": 5.53,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -2439,6 +2735,7 @@
           "position": "QB",
           "pro_team": "MIA",
           "proj_points": 14.55,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -2452,6 +2749,7 @@
           "position": "TE",
           "pro_team": "HOU",
           "proj_points": 7.84,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -2465,6 +2763,7 @@
           "position": "RB",
           "pro_team": "PHI",
           "proj_points": 3.95,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -2478,6 +2777,7 @@
           "position": "RB",
           "pro_team": "CLE",
           "proj_points": 5.19,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -2491,6 +2791,7 @@
           "position": "RB",
           "pro_team": "BAL",
           "proj_points": 7.06,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -2504,6 +2805,7 @@
           "position": "WR",
           "pro_team": "BAL",
           "proj_points": 6.49,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -2517,6 +2819,7 @@
           "position": "D/ST",
           "pro_team": "GB",
           "proj_points": 5.21,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -2530,6 +2833,7 @@
           "position": "K",
           "pro_team": "TB",
           "proj_points": 8.36,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -2543,6 +2847,7 @@
           "position": "WR",
           "pro_team": "HOU",
           "proj_points": 7.18,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -2556,6 +2861,7 @@
           "position": "WR",
           "pro_team": "MIA",
           "proj_points": 7.15,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -2569,6 +2875,7 @@
           "position": "WR",
           "pro_team": "NYJ",
           "proj_points": 7.59,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -2582,6 +2889,7 @@
           "position": "RB",
           "pro_team": "SF",
           "proj_points": 6.69,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -2595,6 +2903,7 @@
           "position": "TE",
           "pro_team": "PIT",
           "proj_points": 8.02,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -2608,6 +2917,7 @@
           "position": "K",
           "pro_team": "GB",
           "proj_points": 8.48,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -2621,6 +2931,7 @@
           "position": "WR",
           "pro_team": "LV",
           "proj_points": 7.35,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -2634,6 +2945,7 @@
           "position": "D/ST",
           "pro_team": "MIN",
           "proj_points": 5.26,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -2647,6 +2959,7 @@
           "position": "D/ST",
           "pro_team": "TB",
           "proj_points": 5.42,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -2660,6 +2973,7 @@
           "position": "RB",
           "pro_team": "NYJ",
           "proj_points": 7.27,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -2673,6 +2987,7 @@
           "position": "D/ST",
           "pro_team": "DAL",
           "proj_points": 4.5,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -2686,6 +3001,7 @@
           "position": "RB",
           "pro_team": "CIN",
           "proj_points": 5.89,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -2699,6 +3015,7 @@
           "position": "RB",
           "pro_team": "NYG",
           "proj_points": 0.0,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -2712,6 +3029,7 @@
           "position": "D/ST",
           "pro_team": "TEN",
           "proj_points": 4.01,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -2725,6 +3043,7 @@
           "position": "RB",
           "pro_team": "GB",
           "proj_points": 4.2,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -2738,6 +3057,7 @@
           "position": "WR",
           "pro_team": "SEA",
           "proj_points": 7.32,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -2751,6 +3071,7 @@
           "position": "QB",
           "pro_team": "CAR",
           "proj_points": 14.5,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -2764,6 +3085,7 @@
           "position": "WR",
           "pro_team": "NYG",
           "proj_points": 6.14,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -2777,6 +3099,7 @@
           "position": "WR",
           "pro_team": "PHI",
           "proj_points": 6.41,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -2790,6 +3113,7 @@
           "position": "D/ST",
           "pro_team": "CHI",
           "proj_points": 4.13,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -2803,6 +3127,7 @@
           "position": "RB",
           "pro_team": "BUF",
           "proj_points": 2.41,
+          "recent_points": [],
           "slot": "free_agent"
         }
       ],
@@ -2822,7 +3147,12 @@
           "percent_owned": -1.0,
           "position": "RB",
           "pro_team": "ATL",
+          "proj_ceiling": 30.9,
+          "proj_floor": 7.6,
+          "proj_label": "balanced",
+          "proj_median": 17.6,
           "proj_points": 18.9,
+          "recent_points": [],
           "slot": "starter"
         },
         {
@@ -2835,7 +3165,12 @@
           "percent_owned": -1.0,
           "position": "WR",
           "pro_team": "ATL",
+          "proj_ceiling": 25.9,
+          "proj_floor": 3.5,
+          "proj_label": "boom/bust",
+          "proj_median": 12.5,
           "proj_points": 13.82,
+          "recent_points": [],
           "slot": "starter"
         },
         {
@@ -2848,7 +3183,12 @@
           "percent_owned": -1.0,
           "position": "RB",
           "pro_team": "ARI",
+          "proj_ceiling": 26.1,
+          "proj_floor": 3.7,
+          "proj_label": "boom/bust",
+          "proj_median": 12.4,
           "proj_points": 13.86,
+          "recent_points": [],
           "slot": "starter"
         },
         {
@@ -2861,7 +3201,12 @@
           "percent_owned": -1.0,
           "position": "WR",
           "pro_team": "TB",
+          "proj_ceiling": 24.1,
+          "proj_floor": 5.2,
+          "proj_label": "balanced",
+          "proj_median": 13.3,
           "proj_points": 14.04,
+          "recent_points": [],
           "slot": "starter"
         },
         {
@@ -2874,7 +3219,12 @@
           "percent_owned": -1.0,
           "position": "RB",
           "pro_team": "CLE",
+          "proj_ceiling": 24.7,
+          "proj_floor": 3.5,
+          "proj_label": "boom/bust",
+          "proj_median": 11.8,
           "proj_points": 13.15,
+          "recent_points": [],
           "slot": "starter"
         },
         {
@@ -2887,7 +3237,12 @@
           "percent_owned": -1.0,
           "position": "QB",
           "pro_team": "CIN",
+          "proj_ceiling": 28.0,
+          "proj_floor": 8.6,
+          "proj_label": "balanced",
+          "proj_median": 18.1,
           "proj_points": 18.15,
+          "recent_points": [],
           "slot": "starter"
         },
         {
@@ -2900,7 +3255,12 @@
           "percent_owned": -1.0,
           "position": "TE",
           "pro_team": "CLE",
+          "proj_ceiling": 20.5,
+          "proj_floor": 2.8,
+          "proj_label": "boom/bust",
+          "proj_median": 10.3,
           "proj_points": 11.12,
+          "recent_points": [],
           "slot": "starter"
         },
         {
@@ -2913,7 +3273,12 @@
           "percent_owned": -1.0,
           "position": "RB",
           "pro_team": "TEN",
+          "proj_ceiling": 21.9,
+          "proj_floor": 3.2,
+          "proj_label": "boom/bust",
+          "proj_median": 10.5,
           "proj_points": 11.53,
+          "recent_points": [],
           "slot": "bench"
         },
         {
@@ -2926,7 +3291,12 @@
           "percent_owned": -1.0,
           "position": "RB",
           "pro_team": "TB",
+          "proj_ceiling": 23.0,
+          "proj_floor": 3.5,
+          "proj_label": "boom/bust",
+          "proj_median": 10.9,
           "proj_points": 12.03,
+          "recent_points": [],
           "slot": "bench"
         },
         {
@@ -2939,7 +3309,12 @@
           "percent_owned": -1.0,
           "position": "WR",
           "pro_team": "TEN",
+          "proj_ceiling": 19.5,
+          "proj_floor": 2.8,
+          "proj_label": "boom/bust",
+          "proj_median": 9.4,
           "proj_points": 10.38,
+          "recent_points": [],
           "slot": "bench"
         },
         {
@@ -2952,7 +3327,12 @@
           "percent_owned": -1.0,
           "position": "QB",
           "pro_team": "CHI",
+          "proj_ceiling": 24.6,
+          "proj_floor": 7.8,
+          "proj_label": "balanced",
+          "proj_median": 16.3,
           "proj_points": 16.39,
+          "recent_points": [],
           "slot": "bench"
         },
         {
@@ -2966,6 +3346,7 @@
           "position": "K",
           "pro_team": "LAC",
           "proj_points": 10.26,
+          "recent_points": [],
           "slot": "starter"
         },
         {
@@ -2978,7 +3359,12 @@
           "percent_owned": -1.0,
           "position": "WR",
           "pro_team": "SF",
+          "proj_ceiling": 18.4,
+          "proj_floor": 1.7,
+          "proj_label": "boom/bust",
+          "proj_median": 7.6,
           "proj_points": 8.92,
+          "recent_points": [],
           "slot": "bench"
         },
         {
@@ -2992,6 +3378,7 @@
           "position": "D/ST",
           "pro_team": "CLE",
           "proj_points": 4.79,
+          "recent_points": [],
           "slot": "starter"
         },
         {
@@ -3004,7 +3391,12 @@
           "percent_owned": -1.0,
           "position": "WR",
           "pro_team": "NO",
+          "proj_ceiling": 17.3,
+          "proj_floor": 2.3,
+          "proj_label": "boom/bust",
+          "proj_median": 8.3,
           "proj_points": 9.31,
+          "recent_points": [],
           "slot": "bench"
         },
         {
@@ -3017,7 +3409,12 @@
           "percent_owned": -1.0,
           "position": "TE",
           "pro_team": "MIN",
+          "proj_ceiling": 16.8,
+          "proj_floor": 2.5,
+          "proj_label": "boom/bust",
+          "proj_median": 8.4,
           "proj_points": 9.2,
+          "recent_points": [],
           "slot": "bench"
         }
       ],
@@ -3040,6 +3437,7 @@
           "position": "WR",
           "pro_team": "SF",
           "proj_points": 8.34,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -3053,6 +3451,7 @@
           "position": "RB",
           "pro_team": "TEN",
           "proj_points": 9.1,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -3066,6 +3465,7 @@
           "position": "D/ST",
           "pro_team": "CLE",
           "proj_points": 6.12,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -3079,6 +3479,7 @@
           "position": "WR",
           "pro_team": "CAR",
           "proj_points": 8.66,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -3092,6 +3493,7 @@
           "position": "QB",
           "pro_team": "NO",
           "proj_points": 17.18,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -3105,6 +3507,7 @@
           "position": "QB",
           "pro_team": "GB",
           "proj_points": 17.06,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -3118,6 +3521,7 @@
           "position": "RB",
           "pro_team": "ARI",
           "proj_points": 5.52,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -3131,6 +3535,7 @@
           "position": "RB",
           "pro_team": "LV",
           "proj_points": 4.0,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -3144,6 +3549,7 @@
           "position": "RB",
           "pro_team": "NO",
           "proj_points": 7.55,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -3153,10 +3559,11 @@
           "injury_status": "IR",
           "name": "Isiah Pacheco",
           "on_bye": false,
-          "percent_owned": 33.43,
+          "percent_owned": 33.42,
           "position": "RB",
           "pro_team": "DET",
           "proj_points": 0.0,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -3170,6 +3577,7 @@
           "position": "WR",
           "pro_team": "HOU",
           "proj_points": 0.0,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -3179,10 +3587,11 @@
           "injury_status": "ACTIVE",
           "name": "Michael Mayer",
           "on_bye": false,
-          "percent_owned": 29.87,
+          "percent_owned": 29.86,
           "position": "TE",
           "pro_team": "LV",
           "proj_points": 5.01,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -3196,6 +3605,7 @@
           "position": "RB",
           "pro_team": "DEN",
           "proj_points": 4.4,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -3209,6 +3619,7 @@
           "position": "QB",
           "pro_team": "HOU",
           "proj_points": 16.14,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -3222,6 +3633,7 @@
           "position": "WR",
           "pro_team": "TEN",
           "proj_points": 7.98,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -3235,6 +3647,7 @@
           "position": "RB",
           "pro_team": "LAC",
           "proj_points": 5.55,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -3248,6 +3661,7 @@
           "position": "QB",
           "pro_team": "MIA",
           "proj_points": 15.71,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -3261,6 +3675,7 @@
           "position": "RB",
           "pro_team": "CLE",
           "proj_points": 5.21,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -3274,6 +3689,7 @@
           "position": "RB",
           "pro_team": "BAL",
           "proj_points": 7.09,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -3287,6 +3703,7 @@
           "position": "WR",
           "pro_team": "BAL",
           "proj_points": 6.51,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -3300,6 +3717,7 @@
           "position": "WR",
           "pro_team": "HOU",
           "proj_points": 7.21,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -3313,6 +3731,7 @@
           "position": "WR",
           "pro_team": "MIA",
           "proj_points": 7.19,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -3326,6 +3745,7 @@
           "position": "WR",
           "pro_team": "NYJ",
           "proj_points": 7.62,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -3339,6 +3759,7 @@
           "position": "RB",
           "pro_team": "SF",
           "proj_points": 6.73,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -3352,6 +3773,7 @@
           "position": "WR",
           "pro_team": "LV",
           "proj_points": 7.38,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -3365,6 +3787,7 @@
           "position": "D/ST",
           "pro_team": "MIN",
           "proj_points": 5.26,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -3378,6 +3801,7 @@
           "position": "RB",
           "pro_team": "NYJ",
           "proj_points": 7.3,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -3391,6 +3815,7 @@
           "position": "D/ST",
           "pro_team": "DAL",
           "proj_points": 4.5,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -3404,6 +3829,7 @@
           "position": "RB",
           "pro_team": "CIN",
           "proj_points": 5.94,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -3417,6 +3843,7 @@
           "position": "RB",
           "pro_team": "NYG",
           "proj_points": 0.0,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -3430,6 +3857,7 @@
           "position": "RB",
           "pro_team": "GB",
           "proj_points": 4.21,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -3443,6 +3871,7 @@
           "position": "WR",
           "pro_team": "SEA",
           "proj_points": 7.34,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -3456,6 +3885,7 @@
           "position": "WR",
           "pro_team": "NYG",
           "proj_points": 6.16,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -3469,6 +3899,7 @@
           "position": "WR",
           "pro_team": "PHI",
           "proj_points": 6.43,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -3482,6 +3913,7 @@
           "position": "QB",
           "pro_team": "TEN",
           "proj_points": 14.46,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -3491,10 +3923,11 @@
           "injury_status": "ACTIVE",
           "name": "Rashod Bateman",
           "on_bye": false,
-          "percent_owned": 8.83,
+          "percent_owned": 8.82,
           "position": "WR",
           "pro_team": "BAL",
           "proj_points": 7.22,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -3508,6 +3941,7 @@
           "position": "WR",
           "pro_team": "MIN",
           "proj_points": 6.78,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -3521,6 +3955,7 @@
           "position": "QB",
           "pro_team": "LV",
           "proj_points": 14.05,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -3534,6 +3969,7 @@
           "position": "WR",
           "pro_team": "HOU",
           "proj_points": 6.73,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -3547,6 +3983,7 @@
           "position": "WR",
           "pro_team": "MIA",
           "proj_points": 6.08,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -3560,6 +3997,7 @@
           "position": "QB",
           "pro_team": "PIT",
           "proj_points": 14.42,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -3573,6 +4011,7 @@
           "position": "D/ST",
           "pro_team": "SF",
           "proj_points": 4.63,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -3586,6 +4025,7 @@
           "position": "TE",
           "pro_team": "SEA",
           "proj_points": 6.71,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -3595,10 +4035,11 @@
           "injury_status": "ACTIVE",
           "name": "Emmett Johnson",
           "on_bye": false,
-          "percent_owned": 6.63,
+          "percent_owned": 6.64,
           "position": "RB",
           "pro_team": "KC",
           "proj_points": 3.19,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -3608,10 +4049,11 @@
           "injury_status": "ACTIVE",
           "name": "Chris Bell",
           "on_bye": false,
-          "percent_owned": 6.59,
+          "percent_owned": 6.58,
           "position": "WR",
           "pro_team": "MIA",
           "proj_points": 7.14,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -3625,6 +4067,7 @@
           "position": "K",
           "pro_team": "DEN",
           "proj_points": 7.99,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -3638,6 +4081,7 @@
           "position": "RB",
           "pro_team": "NYG",
           "proj_points": 2.42,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -3651,6 +4095,7 @@
           "position": "WR",
           "pro_team": "PIT",
           "proj_points": 6.42,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -3664,6 +4109,7 @@
           "position": "TE",
           "pro_team": "TEN",
           "proj_points": 7.49,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -3677,6 +4123,7 @@
           "position": "D/ST",
           "pro_team": "NYJ",
           "proj_points": 4.78,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -3690,6 +4137,7 @@
           "position": "QB",
           "pro_team": "ARI",
           "proj_points": 14.91,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -3699,10 +4147,11 @@
           "injury_status": "QUESTIONABLE",
           "name": "Omar Cooper Jr.",
           "on_bye": false,
-          "percent_owned": 5.06,
+          "percent_owned": 5.05,
           "position": "WR",
           "pro_team": "NYJ",
           "proj_points": 2.03,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -3716,6 +4165,7 @@
           "position": "K",
           "pro_team": "BUF",
           "proj_points": 8.05,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -3729,6 +4179,7 @@
           "position": "D/ST",
           "pro_team": "BUF",
           "proj_points": 3.59,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -3742,6 +4193,7 @@
           "position": "TE",
           "pro_team": "LAC",
           "proj_points": 6.16,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -3755,6 +4207,7 @@
           "position": "WR",
           "pro_team": "NYG",
           "proj_points": 3.98,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -3768,6 +4221,7 @@
           "position": "WR",
           "pro_team": "NONE",
           "proj_points": 0.0,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -3781,6 +4235,7 @@
           "position": "WR",
           "pro_team": "ATL",
           "proj_points": 4.75,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -3794,6 +4249,7 @@
           "position": "RB",
           "pro_team": "SEA",
           "proj_points": 2.65,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -3807,6 +4263,7 @@
           "position": "WR",
           "pro_team": "DAL",
           "proj_points": 5.29,
+          "recent_points": [],
           "slot": "free_agent"
         }
       ],
@@ -3826,7 +4283,12 @@
           "percent_owned": -1.0,
           "position": "WR",
           "pro_team": "CIN",
+          "proj_ceiling": 34.6,
+          "proj_floor": 7.9,
+          "proj_label": "balanced",
+          "proj_median": 19.0,
           "proj_points": 20.0,
+          "recent_points": [],
           "slot": "starter"
         },
         {
@@ -3839,7 +4301,12 @@
           "percent_owned": -1.0,
           "position": "RB",
           "pro_team": "LAC",
+          "proj_ceiling": 28.8,
+          "proj_floor": 7.6,
+          "proj_label": "balanced",
+          "proj_median": 16.5,
           "proj_points": 17.64,
+          "recent_points": [],
           "slot": "starter"
         },
         {
@@ -3852,7 +4319,12 @@
           "percent_owned": -1.0,
           "position": "RB",
           "pro_team": "BAL",
+          "proj_ceiling": 26.6,
+          "proj_floor": 6.6,
+          "proj_label": "balanced",
+          "proj_median": 15.2,
           "proj_points": 16.45,
+          "recent_points": [],
           "slot": "starter"
         },
         {
@@ -3865,7 +4337,12 @@
           "percent_owned": -1.0,
           "position": "WR",
           "pro_team": "BAL",
+          "proj_ceiling": 24.2,
+          "proj_floor": 5.5,
+          "proj_label": "balanced",
+          "proj_median": 13.5,
           "proj_points": 14.27,
+          "recent_points": [],
           "slot": "starter"
         },
         {
@@ -3878,7 +4355,12 @@
           "percent_owned": -1.0,
           "position": "WR",
           "pro_team": "PHI",
+          "proj_ceiling": 24.7,
+          "proj_floor": 5.7,
+          "proj_label": "balanced",
+          "proj_median": 13.8,
           "proj_points": 14.86,
+          "recent_points": [],
           "slot": "starter"
         },
         {
@@ -3891,7 +4373,12 @@
           "percent_owned": -1.0,
           "position": "QB",
           "pro_team": "JAX",
+          "proj_ceiling": 27.7,
+          "proj_floor": 8.6,
+          "proj_label": "balanced",
+          "proj_median": 18.0,
           "proj_points": 18.0,
+          "recent_points": [],
           "slot": "starter"
         },
         {
@@ -3904,7 +4391,12 @@
           "percent_owned": -1.0,
           "position": "WR",
           "pro_team": "CHI",
+          "proj_ceiling": 22.0,
+          "proj_floor": 3.0,
+          "proj_label": "boom/bust",
+          "proj_median": 10.7,
           "proj_points": 12.04,
+          "recent_points": [],
           "slot": "bench"
         },
         {
@@ -3917,7 +4409,12 @@
           "percent_owned": -1.0,
           "position": "RB",
           "pro_team": "PIT",
+          "proj_ceiling": 23.5,
+          "proj_floor": 3.4,
+          "proj_label": "boom/bust",
+          "proj_median": 11.3,
           "proj_points": 12.68,
+          "recent_points": [],
           "slot": "bench"
         },
         {
@@ -3930,7 +4427,12 @@
           "percent_owned": -1.0,
           "position": "TE",
           "pro_team": "PHI",
+          "proj_ceiling": 20.0,
+          "proj_floor": 2.7,
+          "proj_label": "boom/bust",
+          "proj_median": 10.2,
           "proj_points": 10.96,
+          "recent_points": [],
           "slot": "starter"
         },
         {
@@ -3943,7 +4445,12 @@
           "percent_owned": -1.0,
           "position": "QB",
           "pro_team": "IND",
+          "proj_ceiling": 24.7,
+          "proj_floor": 7.6,
+          "proj_label": "balanced",
+          "proj_median": 15.9,
           "proj_points": 16.22,
+          "recent_points": [],
           "slot": "bench"
         },
         {
@@ -3956,7 +4463,12 @@
           "percent_owned": -1.0,
           "position": "TE",
           "pro_team": "NE",
+          "proj_ceiling": 16.4,
+          "proj_floor": 1.8,
+          "proj_label": "boom/bust",
+          "proj_median": 7.3,
           "proj_points": 8.25,
+          "recent_points": [],
           "slot": "bench"
         },
         {
@@ -3969,7 +4481,12 @@
           "percent_owned": -1.0,
           "position": "WR",
           "pro_team": "GB",
+          "proj_ceiling": 18.6,
+          "proj_floor": 2.7,
+          "proj_label": "boom/bust",
+          "proj_median": 8.9,
           "proj_points": 10.09,
+          "recent_points": [],
           "slot": "bench"
         },
         {
@@ -3983,6 +4500,7 @@
           "position": "K",
           "pro_team": "JAX",
           "proj_points": 8.81,
+          "recent_points": [],
           "slot": "starter"
         },
         {
@@ -3996,6 +4514,7 @@
           "position": "K",
           "pro_team": "MIN",
           "proj_points": 8.42,
+          "recent_points": [],
           "slot": "bench"
         },
         {
@@ -4009,6 +4528,7 @@
           "position": "D/ST",
           "pro_team": "LAC",
           "proj_points": 7.42,
+          "recent_points": [],
           "slot": "starter"
         },
         {
@@ -4021,7 +4541,12 @@
           "percent_owned": -1.0,
           "position": "RB",
           "pro_team": "GB",
+          "proj_ceiling": 2.6,
+          "proj_floor": 0.2,
+          "proj_label": "boom/bust",
+          "proj_median": 1.0,
           "proj_points": 1.26,
+          "recent_points": [],
           "slot": "bench"
         }
       ],
@@ -4044,6 +4569,7 @@
           "position": "HC",
           "pro_team": "BUF",
           "proj_points": 0.43,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -4053,10 +4579,11 @@
           "injury_status": "ACTIVE",
           "name": "Cowboys Coach",
           "on_bye": false,
-          "percent_owned": 74.45,
+          "percent_owned": 74.46,
           "position": "HC",
           "pro_team": "DAL",
           "proj_points": 0.51,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -4070,6 +4597,7 @@
           "position": "K",
           "pro_team": "DET",
           "proj_points": 8.58,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -4083,6 +4611,7 @@
           "position": "D/ST",
           "pro_team": "JAX",
           "proj_points": 4.54,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -4096,6 +4625,7 @@
           "position": "WR",
           "pro_team": "SF",
           "proj_points": 9.54,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -4109,6 +4639,7 @@
           "position": "D/ST",
           "pro_team": "NE",
           "proj_points": 5.99,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -4122,6 +4653,7 @@
           "position": "WR",
           "pro_team": "CLE",
           "proj_points": 9.18,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -4135,6 +4667,7 @@
           "position": "WR",
           "pro_team": "NE",
           "proj_points": 8.81,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -4148,6 +4681,7 @@
           "position": "D/ST",
           "pro_team": "LAC",
           "proj_points": 5.55,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -4157,10 +4691,11 @@
           "injury_status": "ACTIVE",
           "name": "Baker Mayfield",
           "on_bye": false,
-          "percent_owned": 59.52,
+          "percent_owned": 59.51,
           "position": "QB",
           "pro_team": "TB",
           "proj_points": 16.13,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -4174,6 +4709,7 @@
           "position": "RB",
           "pro_team": "HOU",
           "proj_points": 7.76,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -4183,10 +4719,11 @@
           "injury_status": "ACTIVE",
           "name": "Hunter Henry",
           "on_bye": false,
-          "percent_owned": 54.67,
+          "percent_owned": 54.66,
           "position": "TE",
           "pro_team": "NE",
           "proj_points": 9.19,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -4200,6 +4737,7 @@
           "position": "RB",
           "pro_team": "SEA",
           "proj_points": 12.16,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -4213,6 +4751,7 @@
           "position": "D/ST",
           "pro_team": "CLE",
           "proj_points": 6.12,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -4226,6 +4765,7 @@
           "position": "K",
           "pro_team": "BAL",
           "proj_points": 8.58,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -4235,10 +4775,11 @@
           "injury_status": "ACTIVE",
           "name": "Juwan Johnson",
           "on_bye": false,
-          "percent_owned": 51.72,
+          "percent_owned": 51.71,
           "position": "TE",
           "pro_team": "NO",
           "proj_points": 8.63,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -4252,6 +4793,7 @@
           "position": "WR",
           "pro_team": "CAR",
           "proj_points": 8.63,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -4265,6 +4807,7 @@
           "position": "HC",
           "pro_team": "KC",
           "proj_points": 0.46,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -4278,6 +4821,7 @@
           "position": "WR",
           "pro_team": "SEA",
           "proj_points": 9.02,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -4291,6 +4835,7 @@
           "position": "QB",
           "pro_team": "GB",
           "proj_points": 15.94,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -4304,6 +4849,7 @@
           "position": "RB",
           "pro_team": "ARI",
           "proj_points": 5.5,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -4317,6 +4863,7 @@
           "position": "HC",
           "pro_team": "NE",
           "proj_points": 0.46,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -4326,10 +4873,11 @@
           "injury_status": "ACTIVE",
           "name": "Chris Boswell",
           "on_bye": false,
-          "percent_owned": 39.2,
+          "percent_owned": 39.19,
           "position": "K",
           "pro_team": "PIT",
           "proj_points": 8.4,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -4343,6 +4891,7 @@
           "position": "RB",
           "pro_team": "LV",
           "proj_points": 3.98,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -4356,6 +4905,7 @@
           "position": "RB",
           "pro_team": "NO",
           "proj_points": 7.51,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -4369,6 +4919,7 @@
           "position": "QB",
           "pro_team": "IND",
           "proj_points": 16.2,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -4382,6 +4933,7 @@
           "position": "D/ST",
           "pro_team": "KC",
           "proj_points": 5.9,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -4391,10 +4943,11 @@
           "injury_status": "ACTIVE",
           "name": "Kenyon Sadiq",
           "on_bye": false,
-          "percent_owned": 34.83,
+          "percent_owned": 34.82,
           "position": "TE",
           "pro_team": "NYJ",
           "proj_points": 8.66,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -4408,6 +4961,7 @@
           "position": "K",
           "pro_team": "CHI",
           "proj_points": 8.48,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -4417,10 +4971,11 @@
           "injury_status": "IR",
           "name": "Isiah Pacheco",
           "on_bye": false,
-          "percent_owned": 33.43,
+          "percent_owned": 33.42,
           "position": "RB",
           "pro_team": "DET",
           "proj_points": 0.0,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -4434,6 +4989,7 @@
           "position": "WR",
           "pro_team": "HOU",
           "proj_points": 0.0,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -4447,6 +5003,7 @@
           "position": "K",
           "pro_team": "MIN",
           "proj_points": 8.38,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -4456,10 +5013,11 @@
           "injury_status": "ACTIVE",
           "name": "49ers Coach",
           "on_bye": false,
-          "percent_owned": 32.34,
+          "percent_owned": 32.35,
           "position": "HC",
           "pro_team": "SF",
           "proj_points": 0.36,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -4469,10 +5027,11 @@
           "injury_status": "ACTIVE",
           "name": "Tre Tucker",
           "on_bye": false,
-          "percent_owned": 32.22,
+          "percent_owned": 32.21,
           "position": "WR",
           "pro_team": "LV",
           "proj_points": 8.15,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -4486,6 +5045,7 @@
           "position": "WR",
           "pro_team": "TB",
           "proj_points": 7.22,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -4499,6 +5059,7 @@
           "position": "HC",
           "pro_team": "CIN",
           "proj_points": 0.41,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -4508,10 +5069,11 @@
           "injury_status": "ACTIVE",
           "name": "Chris Rodriguez Jr.",
           "on_bye": false,
-          "percent_owned": 30.78,
+          "percent_owned": 30.77,
           "position": "RB",
           "pro_team": "JAX",
           "proj_points": 4.28,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -4521,10 +5083,11 @@
           "injury_status": "ACTIVE",
           "name": "Michael Mayer",
           "on_bye": false,
-          "percent_owned": 29.87,
+          "percent_owned": 29.86,
           "position": "TE",
           "pro_team": "LV",
           "proj_points": 4.99,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -4538,6 +5101,7 @@
           "position": "RB",
           "pro_team": "DEN",
           "proj_points": 4.38,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -4551,6 +5115,7 @@
           "position": "WR",
           "pro_team": "IND",
           "proj_points": 7.3,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -4560,10 +5125,11 @@
           "injury_status": "ACTIVE",
           "name": "Terrance Ferguson",
           "on_bye": false,
-          "percent_owned": 27.49,
+          "percent_owned": 27.48,
           "position": "TE",
           "pro_team": "LAR",
           "proj_points": 6.22,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -4573,10 +5139,11 @@
           "injury_status": "ACTIVE",
           "name": "Jerry Jeudy",
           "on_bye": false,
-          "percent_owned": 26.51,
+          "percent_owned": 26.5,
           "position": "WR",
           "pro_team": "CLE",
           "proj_points": 8.23,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -4590,6 +5157,7 @@
           "position": "QB",
           "pro_team": "SEA",
           "proj_points": 14.66,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -4603,6 +5171,7 @@
           "position": "RB",
           "pro_team": "ATL",
           "proj_points": 5.43,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -4616,6 +5185,7 @@
           "position": "QB",
           "pro_team": "HOU",
           "proj_points": 14.96,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -4629,6 +5199,7 @@
           "position": "WR",
           "pro_team": "CLE",
           "proj_points": 8.38,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -4642,6 +5213,7 @@
           "position": "HC",
           "pro_team": "CHI",
           "proj_points": -0.02,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -4655,6 +5227,7 @@
           "position": "WR",
           "pro_team": "TEN",
           "proj_points": 7.96,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -4668,6 +5241,7 @@
           "position": "TE",
           "pro_team": "JAX",
           "proj_points": 8.38,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -4681,6 +5255,7 @@
           "position": "K",
           "pro_team": "CIN",
           "proj_points": 8.35,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -4694,6 +5269,7 @@
           "position": "RB",
           "pro_team": "LAC",
           "proj_points": 5.53,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -4707,6 +5283,7 @@
           "position": "QB",
           "pro_team": "MIA",
           "proj_points": 14.55,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -4720,6 +5297,7 @@
           "position": "HC",
           "pro_team": "GB",
           "proj_points": 0.19,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -4733,6 +5311,7 @@
           "position": "TE",
           "pro_team": "HOU",
           "proj_points": 7.84,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -4746,6 +5325,7 @@
           "position": "HC",
           "pro_team": "PIT",
           "proj_points": 0.05,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -4759,6 +5339,7 @@
           "position": "HC",
           "pro_team": "HOU",
           "proj_points": 0.26,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -4772,6 +5353,7 @@
           "position": "RB",
           "pro_team": "PHI",
           "proj_points": 3.95,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -4785,6 +5367,7 @@
           "position": "RB",
           "pro_team": "CLE",
           "proj_points": 5.19,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -4798,6 +5381,7 @@
           "position": "RB",
           "pro_team": "BAL",
           "proj_points": 7.06,
+          "recent_points": [],
           "slot": "free_agent"
         },
         {
@@ -4811,6 +5395,7 @@
           "position": "WR",
           "pro_team": "BAL",
           "proj_points": 6.49,
+          "recent_points": [],
           "slot": "free_agent"
         }
       ],
@@ -4830,7 +5415,12 @@
           "percent_owned": -1.0,
           "position": "WR",
           "pro_team": "LAR",
+          "proj_ceiling": 36.1,
+          "proj_floor": 8.2,
+          "proj_label": "balanced",
+          "proj_median": 20.0,
           "proj_points": 21.05,
+          "recent_points": [],
           "slot": "starter"
         },
         {
@@ -4843,7 +5433,12 @@
           "percent_owned": -1.0,
           "position": "RB",
           "pro_team": "LAC",
+          "proj_ceiling": 28.6,
+          "proj_floor": 7.2,
+          "proj_label": "balanced",
+          "proj_median": 16.3,
           "proj_points": 17.58,
+          "recent_points": [],
           "slot": "starter"
         },
         {
@@ -4856,7 +5451,12 @@
           "percent_owned": -1.0,
           "position": "TE",
           "pro_team": "ARI",
+          "proj_ceiling": 23.8,
+          "proj_floor": 5.4,
+          "proj_label": "balanced",
+          "proj_median": 13.5,
           "proj_points": 14.34,
+          "recent_points": [],
           "slot": "starter"
         },
         {
@@ -4869,7 +5469,12 @@
           "percent_owned": -1.0,
           "position": "RB",
           "pro_team": "DAL",
+          "proj_ceiling": 24.8,
+          "proj_floor": 6.4,
+          "proj_label": "balanced",
+          "proj_median": 14.5,
           "proj_points": 15.29,
+          "recent_points": [],
           "slot": "starter"
         },
         {
@@ -4882,7 +5487,12 @@
           "percent_owned": -1.0,
           "position": "WR",
           "pro_team": "TB",
+          "proj_ceiling": 24.0,
+          "proj_floor": 5.2,
+          "proj_label": "balanced",
+          "proj_median": 13.4,
           "proj_points": 14.04,
+          "recent_points": [],
           "slot": "starter"
         },
         {
@@ -4895,7 +5505,12 @@
           "percent_owned": -1.0,
           "position": "WR",
           "pro_team": "DEN",
+          "proj_ceiling": 22.8,
+          "proj_floor": 3.2,
+          "proj_label": "boom/bust",
+          "proj_median": 11.3,
           "proj_points": 12.24,
+          "recent_points": [],
           "slot": "starter"
         },
         {
@@ -4908,7 +5523,12 @@
           "percent_owned": -1.0,
           "position": "RB",
           "pro_team": "TB",
+          "proj_ceiling": 25.6,
+          "proj_floor": 3.8,
+          "proj_label": "boom/bust",
+          "proj_median": 12.1,
           "proj_points": 13.5,
+          "recent_points": [],
           "slot": "starter"
         },
         {
@@ -4921,7 +5541,12 @@
           "percent_owned": -1.0,
           "position": "WR",
           "pro_team": "CHI",
+          "proj_ceiling": 22.3,
+          "proj_floor": 3.2,
+          "proj_label": "boom/bust",
+          "proj_median": 11.0,
           "proj_points": 12.0,
+          "recent_points": [],
           "slot": "bench"
         },
         {
@@ -4934,7 +5559,12 @@
           "percent_owned": -1.0,
           "position": "WR",
           "pro_team": "SF",
+          "proj_ceiling": 19.7,
+          "proj_floor": 2.9,
+          "proj_label": "boom/bust",
+          "proj_median": 9.6,
           "proj_points": 10.65,
+          "recent_points": [],
           "slot": "bench"
         },
         {
@@ -4947,7 +5577,12 @@
           "percent_owned": -1.0,
           "position": "RB",
           "pro_team": "PIT",
+          "proj_ceiling": 23.7,
+          "proj_floor": 3.6,
+          "proj_label": "boom/bust",
+          "proj_median": 11.4,
           "proj_points": 12.62,
+          "recent_points": [],
           "slot": "bench"
         },
         {
@@ -4960,7 +5595,12 @@
           "percent_owned": -1.0,
           "position": "QB",
           "pro_team": "LAC",
+          "proj_ceiling": 29.0,
+          "proj_floor": 9.3,
+          "proj_label": "balanced",
+          "proj_median": 19.0,
           "proj_points": 18.99,
+          "recent_points": [],
           "slot": "starter"
         },
         {
@@ -4973,7 +5613,12 @@
           "percent_owned": -1.0,
           "position": "WR",
           "pro_team": "JAX",
+          "proj_ceiling": 19.3,
+          "proj_floor": 2.7,
+          "proj_label": "boom/bust",
+          "proj_median": 9.4,
           "proj_points": 10.41,
+          "recent_points": [],
           "slot": "bench"
         },
         {
@@ -4986,7 +5631,12 @@
           "percent_owned": -1.0,
           "position": "RB",
           "pro_team": "WSH",
+          "proj_ceiling": 18.1,
+          "proj_floor": 1.5,
+          "proj_label": "boom/bust",
+          "proj_median": 7.2,
           "proj_points": 8.85,
+          "recent_points": [],
           "slot": "bench"
         },
         {
@@ -4999,7 +5649,12 @@
           "percent_owned": -1.0,
           "position": "WR",
           "pro_team": "IND",
+          "proj_ceiling": 17.3,
+          "proj_floor": 2.4,
+          "proj_label": "boom/bust",
+          "proj_median": 8.3,
           "proj_points": 9.11,
+          "recent_points": [],
           "slot": "bench"
         },
         {
@@ -5012,7 +5667,12 @@
           "percent_owned": -1.0,
           "position": "TE",
           "pro_team": "NYG",
+          "proj_ceiling": 17.3,
+          "proj_floor": 2.4,
+          "proj_label": "boom/bust",
+          "proj_median": 8.8,
           "proj_points": 9.48,
+          "recent_points": [],
           "slot": "bench"
         },
         {
@@ -5025,7 +5685,12 @@
           "percent_owned": -1.0,
           "position": "QB",
           "pro_team": "MIN",
+          "proj_ceiling": 25.0,
+          "proj_floor": 8.1,
+          "proj_label": "balanced",
+          "proj_median": 16.4,
           "proj_points": 16.4,
+          "recent_points": [],
           "slot": "bench"
         },
         {
@@ -5039,6 +5704,7 @@
           "position": "K",
           "pro_team": "SF",
           "proj_points": 8.7,
+          "recent_points": [],
           "slot": "starter"
         },
         {
@@ -5052,6 +5718,7 @@
           "position": "D/ST",
           "pro_team": "LAR",
           "proj_points": 6.17,
+          "recent_points": [],
           "slot": "starter"
         },
         {
@@ -5065,6 +5732,7 @@
           "position": "HC",
           "pro_team": "JAX",
           "proj_points": 1.11,
+          "recent_points": [],
           "slot": "starter"
         }
       ],
