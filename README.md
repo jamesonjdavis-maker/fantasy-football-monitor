@@ -18,8 +18,9 @@ something's actually worth your attention.
   - free agents newly **trending** on the waiver wire
 - **Analyzes** the current lineup for:
   - **bench players projected to outscore a starter** (start/sit nudges)
-  - **weak starting slots** (low projection, injured, or bye) paired with
-    trending free agents who could fill them
+  - **ranked waiver targets** — a value score per available free agent blending
+    projection, position scarcity (your weak spots), Monte Carlo ceiling, and
+    recent hot form
 - **Alerts** via a phone push (ntfy) or Discord embed — and stays silent on
   quiet days.
 - **Runs on a schedule** via GitHub Actions, committing each snapshot back to

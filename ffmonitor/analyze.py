@@ -146,6 +146,78 @@ def _trending_at_weak_positions(
     return flags
 
 
+def _waiver_targets(
+    platform: str,
+    snap: dict,
+    thresholds: Thresholds,
+    production_thresholds: dict | None,
+    top_n: int = 3,
+) -> list[dict]:
+    """Rank available free agents into the best pickups for THIS roster, blending
+    several signals into one interpretable value score:
+      - base weekly projection (ESPN)
+      - scarcity: boosted if the FA plays a position you're weak at
+      - upside: credit for Monte Carlo ceiling above the projection (if ML on)
+      - hot form: credit when recent PPG beats their season average
+    Emits the top N as ranked 'waiver_target' flags."""
+    fas = snap.get("free_agents", [])
+    if not fas:
+        return []
+    weak = _weak_positions(snap, thresholds)
+
+    scored: list[tuple[float, dict, float, list[str]]] = []
+    for fa in fas:
+        proj = _proj(fa) or fa.get("avg_points")
+        if proj is None or proj < 4.0:  # ignore roster-filler noise
+            continue
+        pos = fa.get("position")
+        value = float(proj)
+        reasons: list[str] = []
+
+        if pos in weak:
+            value *= 1.25
+            reasons.append(f"weak at {pos}")
+
+        ceiling = fa.get("proj_ceiling")
+        if ceiling is not None:
+            value += 0.3 * max(0.0, ceiling - proj)
+            reasons.append(f"ceiling {ceiling}")
+
+        recent = fa.get("recent_points") or []
+        avg = fa.get("avg_points")
+        if len(recent) >= 2 and avg is not None:
+            recent_ppg = sum(recent) / len(recent)
+            if recent_ppg > avg:
+                value += (recent_ppg - avg) * 0.5
+                reasons.append("hot form")
+
+        owned = fa.get("percent_owned") or 0
+        if owned and owned > 100:  # Sleeper trending-add count
+            reasons.append(f"{int(owned):,} adds")
+
+        scored.append((value, fa, float(proj), reasons))
+
+    scored.sort(key=lambda t: t[0], reverse=True)
+    flags: list[dict] = []
+    for value, fa, proj, reasons in scored[:top_n]:
+        detail = f" — {', '.join(reasons)}" if reasons else ""
+        flags.append(
+            {
+                "platform": platform,
+                # Uniform severity so the global sort preserves the value ranking
+                # within this section (the score already weights scarcity).
+                "kind": "waiver_target",
+                "severity": "medium",
+                "message": (
+                    f"{fa['name']} ({fa.get('position')}, {fa.get('pro_team')}) "
+                    f"— value {value:.1f} (proj {proj:.1f}){detail}"
+                ),
+                "player": fa,
+            }
+        )
+    return flags
+
+
 def _rising_production_flags(
     platform: str, snap: dict, calibration: dict | None
 ) -> list[dict]:
@@ -255,7 +327,9 @@ def analyze(
         if not snap or snap.get("error") or not snap.get("enabled"):
             continue
         flags.extend(_bench_beats_starter(platform, snap, thresholds))
-        flags.extend(_trending_at_weak_positions(platform, snap, thresholds))
+        flags.extend(
+            _waiver_targets(platform, snap, thresholds, production_thresholds)
+        )
         flags.extend(_rising_production_flags(platform, snap, production_thresholds))
         flags.extend(_projection_range_flags(platform, snap))
 
