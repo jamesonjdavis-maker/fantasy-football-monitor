@@ -38,6 +38,21 @@ def run(config: Config, min_severity: str = "low") -> int:
     previous = storage.load_previous(config.data_dir)
     events = diff.diff_snapshots(previous, current)
 
+    # NFL point spreads (free, public ESPN API) for game-script flags.
+    week = next(
+        (p.get("week") for p in platforms.values()
+         if isinstance(p, dict) and p.get("week")),
+        None,
+    )
+    spreads: dict = {}
+    try:
+        from .odds import fetch_spreads
+
+        spreads = fetch_spreads(week=week)
+        print(f"[odds] point spreads loaded for {len(spreads)} teams.")
+    except Exception as exc:
+        print(f"[odds] spreads unavailable this run: {exc}")
+
     # ML add-ons (safe no-ops if deps/data unavailable):
     #  - Monte Carlo floor/ceiling attached to each roster player
     #  - "heating up" thresholds (history-calibrated) for the rising signal
@@ -49,7 +64,10 @@ def run(config: Config, min_severity: str = "low") -> int:
         ml_signal.attach_replacement_levels(current)  # per-league, on each snap
         production_thresholds = ml_signal.get_production_thresholds()
     flags = analyze.analyze(
-        current, config.thresholds, production_thresholds=production_thresholds
+        current,
+        config.thresholds,
+        production_thresholds=production_thresholds,
+        spreads=spreads,
     )
 
     path = storage.save(config.data_dir, current)

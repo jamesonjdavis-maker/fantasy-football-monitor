@@ -37,6 +37,7 @@ _KIND_LABELS = {
     "ml_rising_bench": "🔥 Heating up (recent form vs history)",
     "mc_upside": "🎲 Floor/ceiling (Monte Carlo)",
     "mc_floor": "🎲 Floor/ceiling (Monte Carlo)",
+    "game_script": "🏟️ Game script (Vegas spreads)",
 }
 
 

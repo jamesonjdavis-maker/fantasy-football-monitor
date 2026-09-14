@@ -21,6 +21,9 @@ something's actually worth your attention.
   - **ranked waiver targets** — a value score per available free agent blending
     projection, position scarcity (your weak spots), Monte Carlo ceiling, and
     recent hot form
+  - **game-script flags** — from live Vegas point spreads (free ESPN odds API):
+    RBs on heavy favorites (positive script) or heavy underdogs (carries thin),
+    and underdog pass-catchers with garbage-time upside
 - **Alerts** via a phone push (ntfy) or Discord embed — and stays silent on
   quiet days.
 - **Runs on a schedule** via GitHub Actions, committing each snapshot back to
