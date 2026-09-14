@@ -120,8 +120,23 @@ def build_league_snapshot(
 
     roster = [_box_player(bp) for bp in lineup]
 
+    # Everyone rostered anywhere in the league. ESPN's free_agents() can lag and
+    # return a player who's actually owned (e.g. a D/ST just picked up), so we
+    # cross-check against real rosters and drop anyone owned. league.teams is
+    # already loaded, so this costs no extra API calls.
     try:
-        free_agents = [_free_agent(p) for p in league.free_agents(size=50)]
+        rostered_ids = {
+            str(getattr(p, "playerId", "")) for t in league.teams for p in t.roster
+        }
+    except Exception:
+        rostered_ids = set()
+
+    try:
+        free_agents = [
+            fa
+            for fa in (_free_agent(p) for p in league.free_agents(size=60))
+            if fa["id"] not in rostered_ids
+        ]
     except Exception:
         free_agents = []
 
