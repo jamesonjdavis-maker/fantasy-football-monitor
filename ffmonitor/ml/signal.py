@@ -24,21 +24,30 @@ def attach_projection_ranges(snapshot: dict) -> None:
         print(f"[ml] Monte Carlo unavailable this run: {exc}")
 
 
-def get_replacement_levels() -> dict | None:
-    """Per-position replacement level (weekly PPG) so waiver value can be scored
-    over replacement, making positions comparable. None if unavailable."""
+def attach_replacement_levels(snapshot: dict) -> None:
+    """Attach per-league replacement levels to each snap, derived from that
+    league's detected settings (team count + starting lineup). Falls back to the
+    12-team default when settings are missing. Safe no-op on failure."""
     try:
-        from .history import replacement_levels
+        from .history import ranks_from_settings, replacement_levels
     except Exception as exc:  # pragma: no cover
         print(f"[ml] replacement-levels module unavailable: {exc}")
-        return None
-    try:
-        lv = replacement_levels()
-        print(f"[ml] replacement levels: {lv}")
-        return lv
-    except Exception as exc:
-        print(f"[ml] replacement levels unavailable this run: {exc}")
-        return None
+        return
+    for key, snap in snapshot.get("platforms", {}).items():
+        if not isinstance(snap, dict) or not snap.get("enabled"):
+            continue
+        try:
+            ls = snap.get("league_settings")
+            ranks = (
+                ranks_from_settings(ls["team_count"], ls["starters"]) if ls else None
+            )
+            snap["replacement_levels"] = replacement_levels(ranks)
+            print(
+                f"[ml] {key}: replacement levels {snap['replacement_levels']}"
+                + (f" (ranks {ranks})" if ranks else " (12-team default)")
+            )
+        except Exception as exc:
+            print(f"[ml] {key}: replacement levels unavailable ({exc})")
 
 
 def get_production_thresholds() -> dict | None:

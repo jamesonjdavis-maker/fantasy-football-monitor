@@ -67,6 +67,32 @@ def _free_agent(p: Any) -> dict[str, Any]:
     )
 
 
+def _settings_slot(slot_position: str | None) -> str | None:
+    """Map an ESPN starting-slot to a replacement bucket (None = not counted:
+    bench, IR, K, D/ST)."""
+    sp = (slot_position or "").upper()
+    if sp in ("QB", "RB", "WR", "TE"):
+        return sp
+    if sp in ("OP", "QB/RB/WR/TE"):
+        return "SUPERFLEX"
+    if sp in ("FLEX", "RB/WR", "RB/WR/TE", "WR/TE"):
+        return "FLEX"
+    return None
+
+
+def _league_settings(league: Any, lineup: list) -> dict[str, Any]:
+    """Detect team count and starting-lineup composition so waiver replacement
+    levels can be league-specific. Starter counts come from your own filled
+    lineup (one entry per starting slot)."""
+    team_count = getattr(getattr(league, "settings", None), "team_count", None)
+    starters: dict[str, int] = {}
+    for bp in lineup:
+        bucket = _settings_slot(getattr(bp, "slot_position", None))
+        if bucket:
+            starters[bucket] = starters.get(bucket, 0) + 1
+    return {"team_count": int(team_count or 12), "starters": starters}
+
+
 def _recent_actual_points(player: Any, week: int, n: int = 3) -> list[float]:
     """Pull the last `n` completed weeks' actual fantasy points from an espn-api
     player's per-week `stats` dict. Defensive: espn-api's stats shape varies, so
@@ -175,6 +201,7 @@ def build_league_snapshot(
         "week": week,
         "season": str(year),
         "private": bool(espn_s2 and swid),
+        "league_settings": _league_settings(league, lineup),
         "roster": roster,
         "free_agents": free_agents,
     }
