@@ -82,13 +82,14 @@ def rising_usage_scores(seasons, positions=DEFAULT_POSITIONS) -> dict[str, dict]
 
 
 def _default_seasons() -> list[int]:
-    """Baseline only needs the current season; use it, with last season as a
-    fallback so early-season weeks (thin trailing data) still return rows."""
+    """Seasons to try, newest last. We include two fallback years so that if the
+    current season isn't published yet (nflverse 404s it early on), the fetch in
+    data.py still finds usable data instead of failing outright."""
     from datetime import date
 
     y = date.today().year
     season = y if date.today().month >= 8 else y - 1
-    return [season - 1, season]
+    return [season - 2, season - 1, season]
 
 
 def main() -> None:
