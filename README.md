@@ -167,19 +167,29 @@ baseline first** — the number your future classifier has to beat.
 - `ml/baseline.py` — the rule, the 0–1 score, and `normalize_name()` (so
   nfl_data_py names line up with your ESPN/Sleeper roster — handles Jr./accents/
   initials).
-- `ml/signal.py` — safe bridge the monitor calls; if the data pull or deps are
-  unavailable it returns `{}` so the core run never breaks.
+- `ml/history.py` — pulls many **completed** seasons (default 8, set
+  `HISTORY_SEASONS`) and derives a per-position **"notably rising" threshold**:
+  how far a player's recent 3-week PPG must exceed their own season average to
+  count, taken as the 75th percentile of historical rises.
+- `ml/signal.py` — safe bridge; returns `None`/`{}` if the data pull or deps are
+  unavailable, so the core run never breaks.
 
-**Wired into alerts:** when `ENABLE_ML=1` (set in the workflow), each run pulls
-the rising-usage scores and `analyze.py` adds **breakout flags** — rising free
-agents you could add, and bench players trending up — tagged
-`📈 Breakout watch` in your alert. Turn it off by unsetting `ENABLE_ML` and
-dropping `requirements-ml.txt` from the workflow install; the monitor keeps
-working without it.
+**The "heating up" signal (wired into alerts, `ENABLE_ML=1`):** history and
+this-season deliberately share one unit — **fantasy points**:
 
-- **Next step (not built yet):** a trained breakout classifier
-  (`train.py`/`predict.py`) can replace the linear rule — but only once it
-  demonstrably beats this baseline.
+- **History (nfl_data_py, completed seasons)** sets the bar per position.
+- **This season (ESPN, live)** supplies each player's recent weekly points and
+  season average — a *different, working* source, so the nflverse
+  current-season gap doesn't block it.
+
+`analyze.py` then flags **bench players and free agents whose recent form beats
+their season average by more than the historical bar**, tagged
+`🔥 Heating up` in your alert. Needs a few weeks of the current season played
+before it fires (a player needs a recent stretch to outrun their average).
+Turn it off by unsetting `ENABLE_ML`; the monitor runs fine without it.
+
+- **Next step (not built yet):** a trained classifier (`train.py`/`predict.py`)
+  can replace the percentile rule — but only once it beats this baseline.
 
 ## Notes & limits
 

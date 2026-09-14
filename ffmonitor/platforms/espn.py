@@ -67,6 +67,26 @@ def _free_agent(p: Any) -> dict[str, Any]:
     )
 
 
+def _recent_actual_points(player: Any, week: int, n: int = 3) -> list[float]:
+    """Pull the last `n` completed weeks' actual fantasy points from an espn-api
+    player's per-week `stats` dict. Defensive: espn-api's stats shape varies, so
+    anything unexpected just yields an empty list (signal skips that player)."""
+    stats = getattr(player, "stats", None)
+    if not isinstance(stats, dict):
+        return []
+    out: list[float] = []
+    for w in range(max(1, week - n), week):  # prior completed weeks only
+        entry = stats.get(w)
+        if entry is None:
+            entry = stats.get(str(w))
+        if isinstance(entry, dict) and entry.get("points") is not None:
+            try:
+                out.append(round(float(entry["points"]), 2))
+            except (TypeError, ValueError):
+                pass
+    return out
+
+
 def _find_my_box_lineup(league: Any, team_id: int | None, week: int) -> tuple[Any, list]:
     """Return (team, lineup) for my team from this week's box scores."""
     box_scores = league.box_scores(week)
@@ -118,7 +138,11 @@ def build_league_snapshot(
     except Exception as exc:
         return {**base, "error": f"ESPN box score error: {exc}"}
 
-    roster = [_box_player(bp) for bp in lineup]
+    roster = []
+    for bp in lineup:
+        pl = _box_player(bp)
+        pl["recent_points"] = _recent_actual_points(bp, week)
+        roster.append(pl)
 
     # Everyone rostered anywhere in the league. ESPN's free_agents() can lag and
     # return a player who's actually owned (e.g. a D/ST just picked up), so we
@@ -132,11 +156,13 @@ def build_league_snapshot(
         rostered_ids = set()
 
     try:
-        free_agents = [
-            fa
-            for fa in (_free_agent(p) for p in league.free_agents(size=60))
-            if fa["id"] not in rostered_ids
-        ]
+        free_agents = []
+        for p in league.free_agents(size=60):
+            fa = _free_agent(p)
+            if fa["id"] in rostered_ids:
+                continue
+            fa["recent_points"] = _recent_actual_points(p, week)
+            free_agents.append(fa)
     except Exception:
         free_agents = []
 

@@ -9,6 +9,27 @@ run proceeds without breakout flags.
 from __future__ import annotations
 
 
+def get_production_thresholds() -> dict | None:
+    """Historical per-position 'notably rising' thresholds (recent PPG vs season
+    average), calibrated from many completed seasons. Returns None if the
+    history pull fails, so the monitor runs without breakout flags."""
+    try:
+        from .history import fantasy_jump_thresholds
+    except Exception as exc:  # pragma: no cover
+        print(f"[ml] history module unavailable: {exc}")
+        return None
+    try:
+        cal = fantasy_jump_thresholds()
+        print(
+            f"[ml] production thresholds from seasons "
+            f"{sorted(cal['seasons'])}: {cal['thresholds']}"
+        )
+        return cal
+    except Exception as exc:
+        print(f"[ml] production thresholds unavailable this run: {exc}")
+        return None
+
+
 def get_rising_scores(seasons: list[int] | None = None) -> dict[str, dict]:
     """Return {normalized_name: {score, usage_delta, opp_share, rising, ...}}
     for the latest NFL week, or {} if the signal is unavailable this run."""
