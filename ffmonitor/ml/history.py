@@ -49,11 +49,12 @@ def fantasy_jump_thresholds(
     """
     import pandas as pd
 
-    from .data import _import_weekly
+    from .data import _weekly_raw
 
     n = n_seasons or default_n_seasons()
     seasons = _completed_seasons(n)
-    df = _import_weekly(seasons)  # resilient: skips seasons that 404
+    # Shared, cached fetch — reused by montecarlo.py in the same run.
+    df = _weekly_raw(tuple(seasons)).copy()  # resilient: skips seasons that 404
 
     if "season_type" in df.columns:
         df = df[df["season_type"] == "REG"]

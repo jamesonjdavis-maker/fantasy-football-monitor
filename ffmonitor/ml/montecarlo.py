@@ -45,11 +45,12 @@ def _multipliers(n_seasons: int | None = None) -> dict:
     import numpy as np
     import pandas as pd
 
-    from .data import _import_weekly
+    from .data import _weekly_raw
     from .history import _completed_seasons, default_n_seasons
 
     n = n_seasons or default_n_seasons()
-    df = _import_weekly(_completed_seasons(n))
+    # Shared, cached fetch — reused by history.py in the same run (one download).
+    df = _weekly_raw(tuple(_completed_seasons(n))).copy()
     if "season_type" in df.columns:
         df = df[df["season_type"] == "REG"]
     df = df[df["position"].isin(_POSITIONS)].copy()
