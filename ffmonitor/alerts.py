@@ -212,25 +212,35 @@ def build_discord_embed(snapshot: dict, items: list[dict]) -> dict:
         }
         return {"username": "Fantasy Football Monitor", "embeds": [embed]}
 
-    multi = _is_multi_source(items)
+    # One embed per league so nothing is crammed into a single field. Discord
+    # allows up to 10 embeds and 25 fields each — plenty for a per-league layout.
     teams = _team_by_source(snapshot)
-    fields = [
-        {"name": label, "value": _discord_lines(group, multi, teams), "inline": False}
-        for label, group in _grouped(items).items()
-    ]
-    return {
-        "username": "Fantasy Football Monitor",
-        "embeds": [
-            {
-                "title": f"🏈 Fantasy update — Week {week}",
-                "description": f"{len(items)} item(s) worth a look.",
-                "color": _COLORS.get(_top_severity(items), 0x2F9E44),
-                "fields": fields[:25],
-                "footer": {"text": _footer(snapshot)},
-                "timestamp": snapshot.get("generated_at"),
-            }
-        ],
-    }
+    by_league: dict[str, list[dict]] = {}
+    for it in items:
+        by_league.setdefault(it.get("platform"), []).append(it)
+
+    embeds = []
+    for src, league_items in by_league.items():
+        label = _source_label(src)
+        team = teams.get(src)
+        header = f"{label} · {team}" if team else label
+        fields = [
+            # multi=False: no per-line league tag — the embed itself is the league
+            {"name": kind_label, "value": _discord_lines(group, False, teams),
+             "inline": False}
+            for kind_label, group in _grouped(league_items).items()
+        ]
+        embeds.append({
+            "title": f"🏈 {header} — Week {week}",
+            "color": _COLORS.get(_top_severity(league_items), 0x2F9E44),
+            "fields": fields[:25],
+        })
+
+    embeds = embeds[:10]
+    if embeds:
+        embeds[-1]["timestamp"] = snapshot.get("generated_at")
+        embeds[-1]["footer"] = {"text": _footer(snapshot)}
+    return {"username": "Fantasy Football Monitor", "embeds": embeds}
 
 
 def send_discord(webhook_url: str, embed: dict) -> bool:
