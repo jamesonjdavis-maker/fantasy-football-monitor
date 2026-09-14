@@ -250,11 +250,35 @@ def build_discord_embed(snapshot: dict, items: list[dict]) -> dict:
             "fields": fields[:25],
         })
 
+    # Value-score legend, shown when any waiver targets are present.
+    if any(it.get("kind") == "waiver_target" for it in items):
+        embeds.append(_value_legend_embed())
+
     embeds = embeds[:10]
     if embeds:
         embeds[-1]["timestamp"] = snapshot.get("generated_at")
         embeds[-1]["footer"] = {"text": _footer(snapshot)}
     return {"username": "Fantasy Football Monitor", "embeds": embeds}
+
+
+def _value_legend_embed() -> dict:
+    """A guide to reading the waiver 'value' score (points over replacement)."""
+    guide = (
+        "```\n"
+        "value = points over a replaceable player at that\n"
+        "position, plus upside / hot-form / need bonuses\n"
+        "\n"
+        "below 0   below replacement (streamer / dart)\n"
+        "0 to 2    around replacement - marginal\n"
+        "2 to 5    a real upgrade at the position\n"
+        "5+        priority add - signals stacking\n"
+        "```"
+    )
+    return {
+        "title": "📖 How to read the value score",
+        "description": guide,
+        "color": 0x868E96,
+    }
 
 
 def send_discord(webhook_url: str, embed: dict) -> bool:
