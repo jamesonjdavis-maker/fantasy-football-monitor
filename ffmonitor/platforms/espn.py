@@ -113,21 +113,21 @@ def _recent_actual_points(player: Any, week: int, n: int = 3) -> list[float]:
     return out
 
 
-def _find_my_box_lineup(league: Any, team_id: int | None, week: int) -> tuple[Any, list]:
-    """Return (team, lineup) for my team from this week's box scores."""
+def _find_my_box_lineup(
+    league: Any, team_id: int | None, week: int
+) -> tuple[Any, list, Any]:
+    """Return (my_team, my_lineup, opponent_team) from this week's box scores.
+    Opponent is None if my team is on bye (no matchup)."""
     box_scores = league.box_scores(week)
     for box in box_scores:
-        for team, lineup in (
-            (box.home_team, box.home_lineup),
-            (box.away_team, box.away_lineup),
-        ):
-            if team is None:
-                continue
-            if team_id is not None and getattr(team, "team_id", None) == team_id:
-                return team, lineup
-    # No team_id match (or none configured): fall back to the first team.
+        home, away = box.home_team, box.away_team
+        if team_id is not None and getattr(home, "team_id", None) == team_id:
+            return home, box.home_lineup, away
+        if team_id is not None and getattr(away, "team_id", None) == team_id:
+            return away, box.away_lineup, home
+    # No team_id match (or none configured): fall back to the first matchup.
     first = box_scores[0]
-    return first.home_team, first.home_lineup
+    return first.home_team, first.home_lineup, first.away_team
 
 
 def build_league_snapshot(
@@ -160,7 +160,7 @@ def build_league_snapshot(
     week = getattr(league, "current_week", None) or 1
 
     try:
-        team, lineup = _find_my_box_lineup(league, entry.team_id, week)
+        team, lineup, opponent = _find_my_box_lineup(league, entry.team_id, week)
     except Exception as exc:
         return {**base, "error": f"ESPN box score error: {exc}"}
 
@@ -198,6 +198,7 @@ def build_league_snapshot(
         and getattr(league.settings, "name", None),
         "team_name": getattr(team, "team_name", "My Team"),
         "team_id": getattr(team, "team_id", None),
+        "opponent": getattr(opponent, "team_name", None),
         "week": week,
         "season": str(year),
         "private": bool(espn_s2 and swid),
