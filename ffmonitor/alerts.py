@@ -86,6 +86,15 @@ def _team_by_source(snapshot: dict) -> dict[str, str]:
     return out
 
 
+def _opponent_by_source(snapshot: dict) -> dict[str, str]:
+    """Map source key -> this week's opponent team name (if any)."""
+    out: dict[str, str] = {}
+    for key, snap in snapshot.get("platforms", {}).items():
+        if isinstance(snap, dict) and snap.get("opponent"):
+            out[key] = snap["opponent"]
+    return out
+
+
 def _tag(item: dict, multi: bool, teams: dict[str, str]) -> str:
     """Per-line prefix like '[BBL · Jamo] '. Empty for single-source alerts."""
     if not multi:
@@ -128,7 +137,8 @@ def _league_summary_lines(snapshot: dict) -> list[str]:
             lines.append(f"  ⚠️ {name}: error")
         else:
             team = snap.get("team_name", "your team")
-            lines.append(f"  ✅ {name} — {team}")
+            vs = f" vs {snap['opponent']}" if snap.get("opponent") else ""
+            lines.append(f"  ✅ {name} — {team}{vs}")
     return lines
 
 
@@ -215,6 +225,7 @@ def build_discord_embed(snapshot: dict, items: list[dict]) -> dict:
     # One embed per league so nothing is crammed into a single field. Discord
     # allows up to 10 embeds and 25 fields each — plenty for a per-league layout.
     teams = _team_by_source(snapshot)
+    opponents = _opponent_by_source(snapshot)
     by_league: dict[str, list[dict]] = {}
     for it in items:
         by_league.setdefault(it.get("platform"), []).append(it)
@@ -223,7 +234,10 @@ def build_discord_embed(snapshot: dict, items: list[dict]) -> dict:
     for src, league_items in by_league.items():
         label = _source_label(src)
         team = teams.get(src)
+        opp = opponents.get(src)
         header = f"{label} · {team}" if team else label
+        if opp:
+            header += f" vs {opp}"
         fields = [
             # multi=False: no per-line league tag — the embed itself is the league
             {"name": kind_label, "value": _discord_lines(group, False, teams),
