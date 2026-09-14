@@ -263,21 +263,17 @@ def build_discord_embed(snapshot: dict, items: list[dict]) -> dict:
 
 def _value_legend_embed() -> dict:
     """A guide to reading the waiver 'value' score (points over replacement)."""
-    guide = (
-        "```\n"
-        "value = points over a replaceable player at that\n"
-        "position, plus upside / hot-form / need bonuses\n"
-        "\n"
-        "below 0   below replacement (streamer / dart)\n"
-        "0 to 2    around replacement - marginal\n"
-        "2 to 5    a real upgrade at the position\n"
-        "5+        priority add - signals stacking\n"
-        "```"
-    )
     return {
         "title": "📖 How to read the value score",
-        "description": guide,
-        "color": 0x868E96,
+        "description": (
+            "🔴  **< 0**  ·  below replacement — streamer / dart\n"
+            "🟠  **0–2**  ·  around replacement — marginal\n"
+            "🟡  **2–5**  ·  a real upgrade at the position\n"
+            "🟢  **5+**  ·  priority add — signals stacking\n\n"
+            "*Value = points above a replaceable player at that position, "
+            "plus bonuses for upside, hot form, and filling a need.*"
+        ),
+        "color": 0x2F9E44,
     }
 
 
