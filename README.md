@@ -188,8 +188,22 @@ their season average by more than the historical bar**, tagged
 before it fires (a player needs a recent stretch to outrun their average).
 Turn it off by unsetting `ENABLE_ML`; the monitor runs fine without it.
 
+**Monte Carlo floor/ceiling (`ml/montecarlo.py`, `ENABLE_ML=1`):** turns each
+projection into a range instead of one number.
+
+- From history, it learns each position's *performance multiplier* distribution
+  (weekly points ÷ season average), **tiered by scoring level** so low-projected
+  players are correctly boomier than studs.
+- For a player projected `mu`, it simulates 5,000 outcomes = `mu ×` sampled
+  multipliers and reads off **floor (P10) / median (P50) / ceiling (P90)** and a
+  `safe floor` / `balanced` / `boom/bust` label. These attach to every roster
+  player (and land in the snapshot JSON).
+- Surfaced in alerts two ways: start/sit suggestions append both players'
+  ranges, and a `🎲 Floor/ceiling` flag calls out a bench **upside dart** (higher
+  ceiling despite an equal/lower median) or **safer floor** option.
+
 - **Next step (not built yet):** a trained classifier (`train.py`/`predict.py`)
-  can replace the percentile rule — but only once it beats this baseline.
+  can replace the percentile rules — but only once it beats these baselines.
 
 ## Notes & limits
 
