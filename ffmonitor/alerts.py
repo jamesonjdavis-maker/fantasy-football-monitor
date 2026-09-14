@@ -72,6 +72,25 @@ def _is_multi_source(items: list[dict]) -> bool:
     return len({it.get("platform") for it in items}) > 1
 
 
+def _team_by_source(snapshot: dict) -> dict[str, str]:
+    """Map source key -> your team name, so alert tags can show the team."""
+    out: dict[str, str] = {}
+    for key, snap in snapshot.get("platforms", {}).items():
+        if isinstance(snap, dict) and snap.get("team_name"):
+            out[key] = snap["team_name"]
+    return out
+
+
+def _tag(item: dict, multi: bool, teams: dict[str, str]) -> str:
+    """Per-line prefix like '[BBL · Jamo] '. Empty for single-source alerts."""
+    if not multi:
+        return ""
+    key = item.get("platform")
+    label = _source_label(key)
+    team = teams.get(key)
+    return f"[{label} · {team}] " if team else f"[{label}] "
+
+
 def _first_week(snapshot: dict) -> Any:
     for snap in snapshot.get("platforms", {}).values():
         if isinstance(snap, dict) and snap.get("week"):
@@ -102,13 +121,13 @@ def build_ntfy(snapshot: dict, items: list[dict]) -> tuple[str, str, str]:
     title = f"Fantasy update - Week {week} ({len(items)} item{'s' if len(items) != 1 else ''})"
 
     multi = _is_multi_source(items)
+    teams = _team_by_source(snapshot)
     lines: list[str] = []
     for label, group in _grouped(items).items():
         lines.append(label)
         for it in group[:_MAX_LINES_PER_GROUP]:
             emoji = _SEVERITY_EMOJI.get(it.get("severity", "info"), "•")
-            tag = f"[{_source_label(it.get('platform'))}] " if multi else ""
-            lines.append(f"  {emoji} {tag}{it['message']}")
+            lines.append(f"  {emoji} {_tag(it, multi, teams)}{it['message']}")
         if len(group) > _MAX_LINES_PER_GROUP:
             lines.append(f"  …and {len(group) - _MAX_LINES_PER_GROUP} more")
         lines.append("")
@@ -132,12 +151,11 @@ def send_ntfy(server: str, topic: str, title: str, body: str, priority: str) -> 
 # --------------------------------------------------------------------------- #
 # Discord backend
 # --------------------------------------------------------------------------- #
-def _discord_lines(items: list[dict], multi: bool) -> str:
+def _discord_lines(items: list[dict], multi: bool, teams: dict[str, str]) -> str:
     lines = []
     for it in items[:_MAX_LINES_PER_GROUP]:
         emoji = _SEVERITY_EMOJI.get(it.get("severity", "info"), "•")
-        tag = f"[{_source_label(it.get('platform'))}] " if multi else ""
-        lines.append(f"{emoji} {tag}{it['message']}")
+        lines.append(f"{emoji} {_tag(it, multi, teams)}{it['message']}")
     if len(items) > _MAX_LINES_PER_GROUP:
         lines.append(f"…and {len(items) - _MAX_LINES_PER_GROUP} more")
     return ("\n".join(lines) or "—")[:_MAX_FIELD_LEN]
@@ -145,8 +163,9 @@ def _discord_lines(items: list[dict], multi: bool) -> str:
 
 def build_discord_embed(snapshot: dict, items: list[dict]) -> dict:
     multi = _is_multi_source(items)
+    teams = _team_by_source(snapshot)
     fields = [
-        {"name": label, "value": _discord_lines(group, multi), "inline": False}
+        {"name": label, "value": _discord_lines(group, multi, teams), "inline": False}
         for label, group in _grouped(items).items()
     ]
     return {
