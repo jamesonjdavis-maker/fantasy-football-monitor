@@ -32,6 +32,8 @@ _KIND_LABELS = {
     "trending_fa": "📈 Trending free agents",
     "bench_over_starter": "🔁 Start/sit suggestions",
     "weak_position_fa": "🎯 Weak-position pickups",
+    "ml_breakout_fa": "📈 Breakout watch (usage trending up)",
+    "ml_breakout_bench": "📈 Breakout watch (usage trending up)",
 }
 
 

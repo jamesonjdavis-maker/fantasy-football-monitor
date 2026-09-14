@@ -37,7 +37,14 @@ def run(config: Config, min_severity: str = "low") -> int:
 
     previous = storage.load_previous(config.data_dir)
     events = diff.diff_snapshots(previous, current)
-    flags = analyze.analyze(current, config.thresholds)
+
+    # ML rising-usage signal (optional; safe no-op if deps/data unavailable).
+    rising_scores: dict = {}
+    if config.enable_ml:
+        from .ml import signal as ml_signal
+
+        rising_scores = ml_signal.get_rising_scores()
+    flags = analyze.analyze(current, config.thresholds, rising_scores=rising_scores)
 
     path = storage.save(config.data_dir, current)
     storage.prune(config.data_dir)

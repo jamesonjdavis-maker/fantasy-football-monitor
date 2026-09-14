@@ -167,10 +167,19 @@ baseline first** — the number your future classifier has to beat.
 - `ml/baseline.py` — the rule, the 0–1 score, and `normalize_name()` (so
   nfl_data_py names line up with your ESPN/Sleeper roster — handles Jr./accents/
   initials).
-- **Next step (not built yet):** `rising_usage_scores()` is the hook `analyze.py`
-  will call to attach these scores to your free agents/bench; then a trained
-  breakout classifier (`train.py`/`predict.py`) can replace the linear rule — but
-  only once it demonstrably beats this baseline.
+- `ml/signal.py` — safe bridge the monitor calls; if the data pull or deps are
+  unavailable it returns `{}` so the core run never breaks.
+
+**Wired into alerts:** when `ENABLE_ML=1` (set in the workflow), each run pulls
+the rising-usage scores and `analyze.py` adds **breakout flags** — rising free
+agents you could add, and bench players trending up — tagged
+`📈 Breakout watch` in your alert. Turn it off by unsetting `ENABLE_ML` and
+dropping `requirements-ml.txt` from the workflow install; the monitor keeps
+working without it.
+
+- **Next step (not built yet):** a trained breakout classifier
+  (`train.py`/`predict.py`) can replace the linear rule — but only once it
+  demonstrably beats this baseline.
 
 ## Notes & limits
 

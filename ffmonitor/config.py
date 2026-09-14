@@ -135,9 +135,12 @@ class Config:
     ntfy_server: str
     data_dir: Path
     thresholds: Thresholds = field(default_factory=Thresholds)
-    # If True, send the Discord alert even when nothing is flagged (useful for
-    # a first run / testing the webhook).
+    # If True, send the alert even when nothing is flagged (daily digest /
+    # first-run webhook test).
     always_notify: bool = False
+    # If True, load the ML rising-usage signal (needs requirements-ml.txt). Off
+    # by default so the core monitor stays lightweight and dependency-free.
+    enable_ml: bool = False
 
     @classmethod
     def from_env(cls) -> "Config":
@@ -164,4 +167,5 @@ class Config:
             data_dir=data_dir,
             always_notify=os.getenv("ALWAYS_NOTIFY", "").lower()
             in ("1", "true", "yes"),
+            enable_ml=os.getenv("ENABLE_ML", "").lower() in ("1", "true", "yes"),
         )

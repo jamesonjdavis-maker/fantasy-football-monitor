@@ -133,16 +133,80 @@ def _trending_at_weak_positions(
     return flags
 
 
-def analyze(snapshot: dict, thresholds: Thresholds) -> list[dict]:
-    """Return all point-in-time flags across platforms, most severe first."""
+def _rising_usage_flags(
+    platform: str, snap: dict, scores: dict[str, dict]
+) -> list[dict]:
+    """ML signal: flag rising-usage free agents (buy-low adds) and bench players
+    whose opportunity share is trending up. `scores` is keyed by normalized
+    player name (see ml.baseline.rising_usage_scores)."""
+    if not scores:
+        return []
+    from .ml.baseline import normalize_name  # cheap import, no pandas
+
+    flags: list[dict] = []
+
+    def _fmt(info: dict) -> str:
+        return (
+            f"usage {info['opp_share']:.0%} of team touches, "
+            f"{info['usage_delta']:+.0%} vs recent avg"
+        )
+
+    for fa in snap.get("free_agents", []):
+        info = scores.get(normalize_name(fa.get("name", "")))
+        if info and info.get("rising"):
+            flags.append(
+                {
+                    "platform": platform,
+                    "kind": "ml_breakout_fa",
+                    "severity": "medium",
+                    "message": (
+                        f"Breakout add available: {fa['name']} "
+                        f"({fa.get('position')}, {fa.get('pro_team')}) — {_fmt(info)}"
+                    ),
+                    "player": fa,
+                }
+            )
+
+    for p in snap.get("roster", []):
+        if p.get("slot") != "bench":
+            continue
+        info = scores.get(normalize_name(p.get("name", "")))
+        if info and info.get("rising"):
+            flags.append(
+                {
+                    "platform": platform,
+                    "kind": "ml_breakout_bench",
+                    "severity": "medium",
+                    "message": (
+                        f"Your bench {p['name']} ({p.get('position')}) is trending "
+                        f"up — {_fmt(info)}"
+                    ),
+                    "player": p,
+                }
+            )
+    return flags
+
+
+def analyze(
+    snapshot: dict,
+    thresholds: Thresholds,
+    rising_scores: dict[str, dict] | None = None,
+) -> list[dict]:
+    """Return all point-in-time flags across platforms, most severe first.
+
+    `rising_scores` (optional) enables the ML breakout flags; when omitted or
+    empty, only the rule-based start/sit and waiver flags run.
+    """
     from .diff import SEVERITY_ORDER
 
+    scores = rising_scores or {}
     flags: list[dict] = []
     for platform, snap in snapshot.get("platforms", {}).items():
         if not snap or snap.get("error") or not snap.get("enabled"):
             continue
         flags.extend(_bench_beats_starter(platform, snap, thresholds))
         flags.extend(_trending_at_weak_positions(platform, snap, thresholds))
+        flags.extend(_rising_usage_flags(platform, snap, scores))
 
     flags.sort(key=lambda f: SEVERITY_ORDER.get(f["severity"], 0), reverse=True)
     return flags
