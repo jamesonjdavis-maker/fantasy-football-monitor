@@ -1,0 +1,17 @@
+# Secrets — never commit these
+.env
+
+# Cached Sleeper player index (large, regenerated on demand)
+data/sleeper_players.json
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.mypy_cache/
+.pytest_cache/
+*.egg-info/
+
+# OS
+.DS_Store
