@@ -30,20 +30,36 @@ def _completed_seasons(n: int) -> list[int]:
     return list(range(current - n, current))
 
 
-# Roughly the "last startable" rank per position in a 12-team league — the
-# freely-available replacement level. A player's value is measured above this.
-_REPLACEMENT_RANK = {"QB": 14, "RB": 30, "WR": 36, "TE": 14}
+# Default "last startable" rank per position for a standard 12-team league
+# (1 QB, 2 RB, 2 WR, 1 TE, 1 FLEX). Used when a league's settings are unknown.
+_DEFAULT_RANKS = {"QB": 14, "RB": 29, "WR": 29, "TE": 14}
 
 
-@lru_cache(maxsize=4)
-def replacement_levels(n_seasons: int | None = None) -> dict:
-    """Per-position replacement level in weekly PPG: the typical output of the
-    last startable player at that position. Subtracting this makes points
-    comparable across positions (a 9-pt TE beats a 9-pt WR)."""
+def ranks_from_settings(team_count: int, starters: dict[str, int]) -> dict[str, int]:
+    """Convert a league's team count + starting-lineup counts into a replacement
+    rank per position. FLEX demand is split across RB/WR/TE; a SUPERFLEX/OP slot
+    adds QB demand. rank ≈ teams × (dedicated starters + share of flex)."""
+    flex = starters.get("FLEX", 0)
+    sflex = starters.get("SUPERFLEX", 0)
+
+    def r(base: float, extra: float) -> int:
+        return max(1, round(team_count * (base + extra)))
+
+    return {
+        "QB": r(starters.get("QB", 1), sflex * 0.5),
+        "RB": r(starters.get("RB", 2), flex * 0.4),
+        "WR": r(starters.get("WR", 2), flex * 0.4),
+        "TE": r(starters.get("TE", 1), flex * 0.2),
+    }
+
+
+@lru_cache(maxsize=16)
+def _levels_for_ranks(ranks_items: tuple, n_seasons: int | None = None) -> dict:
     import pandas as pd
 
     from .data import _weekly_raw
 
+    ranks = dict(ranks_items)
     n = n_seasons or default_n_seasons()
     df = _weekly_raw(tuple(_completed_seasons(n))).copy()
     if "season_type" in df.columns:
@@ -52,7 +68,7 @@ def replacement_levels(n_seasons: int | None = None) -> dict:
     df["ppr"] = pd.to_numeric(df.get("fantasy_points_ppr", 0), errors="coerce").fillna(0.0)
 
     levels: dict[str, float] = {}
-    for pos, rank in _REPLACEMENT_RANK.items():
+    for pos, rank in ranks.items():
         pos_df = df[df["position"] == pos]
 
         def _at_rank(group) -> float:
@@ -64,6 +80,13 @@ def replacement_levels(n_seasons: int | None = None) -> dict:
         per_week = pos_df.groupby(["season", "week"]).apply(_at_rank)
         levels[pos] = round(float(per_week.mean()) if len(per_week) else 0.0, 1)
     return levels
+
+
+def replacement_levels(ranks: dict[str, int] | None = None) -> dict:
+    """Per-position replacement level in weekly PPG for the given ranks (or the
+    12-team default). Subtracting it makes points comparable across positions."""
+    ranks = ranks or _DEFAULT_RANKS
+    return _levels_for_ranks(tuple(sorted(ranks.items())))
 
 
 def default_n_seasons() -> int:

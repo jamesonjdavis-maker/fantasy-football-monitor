@@ -153,7 +153,6 @@ def _waiver_targets(
     platform: str,
     snap: dict,
     thresholds: Thresholds,
-    replacement: dict | None = None,
     top_n: int = 3,
 ) -> list[dict]:
     """Rank available free agents into the best pickups for THIS roster. The
@@ -168,7 +167,7 @@ def _waiver_targets(
     if not fas:
         return []
     weak = _weak_positions(snap, thresholds)
-    repl = replacement or {}
+    repl = snap.get("replacement_levels") or {}  # league-specific (per snap)
 
     scored: list[tuple[float, dict, float, list[str]]] = []
     for fa in fas:
@@ -322,7 +321,6 @@ def analyze(
     snapshot: dict,
     thresholds: Thresholds,
     production_thresholds: dict | None = None,
-    replacement_levels: dict | None = None,
 ) -> list[dict]:
     """Return all point-in-time flags across platforms, most severe first.
 
@@ -337,9 +335,7 @@ def analyze(
         if not snap or snap.get("error") or not snap.get("enabled"):
             continue
         flags.extend(_bench_beats_starter(platform, snap, thresholds))
-        flags.extend(
-            _waiver_targets(platform, snap, thresholds, replacement_levels)
-        )
+        flags.extend(_waiver_targets(platform, snap, thresholds))
         flags.extend(_rising_production_flags(platform, snap, production_thresholds))
         flags.extend(_projection_range_flags(platform, snap))
 
