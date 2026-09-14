@@ -32,6 +32,7 @@ _KIND_LABELS = {
     "trending_fa": "📈 Trending free agents",
     "bench_over_starter": "🔁 Start/sit suggestions",
     "weak_position_fa": "🎯 Weak-position pickups",
+    "waiver_target": "🎯 Top waiver targets",
     "ml_rising_fa": "🔥 Heating up (recent form vs history)",
     "ml_rising_bench": "🔥 Heating up (recent form vs history)",
     "mc_upside": "🎲 Floor/ceiling (Monte Carlo)",
