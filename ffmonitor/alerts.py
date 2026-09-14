@@ -111,6 +111,22 @@ def _footer(snapshot: dict) -> str:
     return " • ".join(parts) or "Fantasy Football Monitor"
 
 
+def _league_summary_lines(snapshot: dict) -> list[str]:
+    """One line per league confirming it was checked — used for the 'all quiet'
+    digest so you know every league was looked at even when there's no news."""
+    lines: list[str] = []
+    for key, snap in snapshot.get("platforms", {}).items():
+        if not isinstance(snap, dict) or not snap.get("enabled"):
+            continue
+        name = snap.get("league_name") or snap.get("label") or _source_label(key)
+        if snap.get("error"):
+            lines.append(f"  ⚠️ {name}: error")
+        else:
+            team = snap.get("team_name", "your team")
+            lines.append(f"  ✅ {name} — {team}")
+    return lines
+
+
 # --------------------------------------------------------------------------- #
 # ntfy backend
 # --------------------------------------------------------------------------- #
@@ -118,6 +134,16 @@ def build_ntfy(snapshot: dict, items: list[dict]) -> tuple[str, str, str]:
     """Return (title, body, priority) for an ntfy push. Body is UTF-8 plain
     text; the title is kept ASCII since ntfy headers dislike non-ASCII."""
     week = _first_week(snapshot)
+
+    # Quiet digest: nothing flagged, but confirm every league was checked.
+    if not items:
+        summary = _league_summary_lines(snapshot)
+        title = f"Daily digest - Week {week} - all quiet"
+        body = "No roster changes or suggestions today.\n\nChecked:\n" + (
+            "\n".join(summary) or "  (no leagues configured)"
+        )
+        return title, body, "2"  # low priority — it's a quiet heads-up
+
     title = f"Fantasy update - Week {week} ({len(items)} item{'s' if len(items) != 1 else ''})"
 
     multi = _is_multi_source(items)
@@ -162,6 +188,25 @@ def _discord_lines(items: list[dict], multi: bool, teams: dict[str, str]) -> str
 
 
 def build_discord_embed(snapshot: dict, items: list[dict]) -> dict:
+    week = _first_week(snapshot)
+    if not items:
+        summary = _league_summary_lines(snapshot)
+        embed = {
+            "title": f"🏈 Daily digest — Week {week} · all quiet",
+            "description": "No roster changes or suggestions today.",
+            "color": 0x2F9E44,
+            "fields": [
+                {
+                    "name": "Checked",
+                    "value": ("\n".join(summary) or "—")[:_MAX_FIELD_LEN],
+                    "inline": False,
+                }
+            ],
+            "footer": {"text": _footer(snapshot)},
+            "timestamp": snapshot.get("generated_at"),
+        }
+        return {"username": "Fantasy Football Monitor", "embeds": [embed]}
+
     multi = _is_multi_source(items)
     teams = _team_by_source(snapshot)
     fields = [
@@ -172,7 +217,7 @@ def build_discord_embed(snapshot: dict, items: list[dict]) -> dict:
         "username": "Fantasy Football Monitor",
         "embeds": [
             {
-                "title": f"🏈 Fantasy update — Week {_first_week(snapshot)}",
+                "title": f"🏈 Fantasy update — Week {week}",
                 "description": f"{len(items)} item(s) worth a look.",
                 "color": _COLORS.get(_top_severity(items), 0x2F9E44),
                 "fields": fields[:25],
