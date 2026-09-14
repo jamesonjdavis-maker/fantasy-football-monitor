@@ -51,7 +51,9 @@ jobs:
           SLEEPER_LEAGUE_ID: ${{ secrets.SLEEPER_LEAGUE_ID }}
           SLEEPER_USER_ID: ${{ secrets.SLEEPER_USER_ID }}
           SLEEPER_USERNAME: ${{ secrets.SLEEPER_USERNAME }}
-          # Alerting
+          # Alerting — ntfy is the default; Discord optional (set either/both)
+          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+          NTFY_SERVER: ${{ secrets.NTFY_SERVER }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           ALWAYS_NOTIFY: ${{ inputs.always_notify }}
         run: python -m ffmonitor.main

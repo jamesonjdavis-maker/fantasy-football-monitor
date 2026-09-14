@@ -96,6 +96,8 @@ class Config:
     espn: ESPNConfig
     sleeper: SleeperConfig
     discord_webhook_url: str | None
+    ntfy_topic: str | None
+    ntfy_server: str
     data_dir: Path
     thresholds: Thresholds = field(default_factory=Thresholds)
     # If True, send the Discord alert even when nothing is flagged (useful for
@@ -119,6 +121,8 @@ class Config:
                 username=os.getenv("SLEEPER_USERNAME") or None,
             ),
             discord_webhook_url=os.getenv("DISCORD_WEBHOOK_URL") or None,
+            ntfy_topic=os.getenv("NTFY_TOPIC") or None,
+            ntfy_server=os.getenv("NTFY_SERVER") or "https://ntfy.sh",
             data_dir=data_dir,
             always_notify=os.getenv("ALWAYS_NOTIFY", "").lower()
             in ("1", "true", "yes"),

@@ -49,7 +49,7 @@ def run(config: Config, min_severity: str = "low") -> int:
             print(f"[warn] {name}: {p['error']}", file=sys.stderr)
 
     if config.always_notify or _worth_alerting(events, flags, min_severity):
-        notify(config.discord_webhook_url, current, events, flags)
+        notify(config, current, events, flags)
     else:
         print("[alerts] Nothing worth flagging today. Staying quiet.")
 
