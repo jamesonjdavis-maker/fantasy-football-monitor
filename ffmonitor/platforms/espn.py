@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from ..config import ESPNConfig
+from ..config import ESPNLeague
 from ..models import BENCH, IR, STARTER, normalize_player
 
 # espn-api lineupSlot / slot_position strings that are not active starters.
@@ -84,32 +84,39 @@ def _find_my_box_lineup(league: Any, team_id: int | None, week: int) -> tuple[An
     return first.home_team, first.home_lineup
 
 
-def build_snapshot(cfg: ESPNConfig) -> dict[str, Any]:
-    """Return a normalized snapshot for the ESPN league, or an error dict."""
-    if not cfg.enabled:
-        return {"enabled": False}
+def build_league_snapshot(
+    entry: ESPNLeague, espn_s2: str | None, swid: str | None, year: int
+) -> dict[str, Any]:
+    """Return a normalized snapshot for one ESPN league, or an error dict.
 
+    Cookies are account-level, so the same espn_s2/swid are passed for every
+    league; only the league_id/team_id differ per `entry`.
+    """
     try:
         from espn_api.football import League
     except ImportError:
-        return {"enabled": True, "error": "espn-api not installed."}
+        return {"enabled": True, "label": entry.label, "platform": "espn",
+                "error": "espn-api not installed."}
+
+    base = {"enabled": True, "label": entry.label, "platform": "espn",
+            "league_id": str(entry.league_id)}
 
     try:
         league = League(
-            league_id=cfg.league_id,
-            year=cfg.year,
-            espn_s2=cfg.espn_s2,
-            swid=cfg.swid,
+            league_id=entry.league_id,
+            year=year,
+            espn_s2=espn_s2,
+            swid=swid,
         )
     except Exception as exc:  # espn-api raises bare Exceptions on auth failure
-        return {"enabled": True, "error": f"ESPN login failed: {exc}"}
+        return {**base, "error": f"ESPN login failed: {exc}"}
 
     week = getattr(league, "current_week", None) or 1
 
     try:
-        team, lineup = _find_my_box_lineup(league, cfg.team_id, week)
+        team, lineup = _find_my_box_lineup(league, entry.team_id, week)
     except Exception as exc:
-        return {"enabled": True, "error": f"ESPN box score error: {exc}"}
+        return {**base, "error": f"ESPN box score error: {exc}"}
 
     roster = [_box_player(bp) for bp in lineup]
 
@@ -119,15 +126,14 @@ def build_snapshot(cfg: ESPNConfig) -> dict[str, Any]:
         free_agents = []
 
     return {
-        "enabled": True,
-        "league_id": str(cfg.league_id),
+        **base,
         "league_name": getattr(league, "settings", None)
         and getattr(league.settings, "name", None),
         "team_name": getattr(team, "team_name", "My Team"),
         "team_id": getattr(team, "team_id", None),
         "week": week,
-        "season": str(cfg.year),
-        "private": cfg.is_private,
+        "season": str(year),
+        "private": bool(espn_s2 and swid),
         "roster": roster,
         "free_agents": free_agents,
     }

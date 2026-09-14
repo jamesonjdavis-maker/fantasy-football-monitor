@@ -51,16 +51,51 @@ def _int_or_none(value: str | None) -> int | None:
 
 
 @dataclass
-class ESPNConfig:
-    league_id: int | None
+class ESPNLeague:
+    """One ESPN league to monitor. The cookies are account-level (shared across
+    all leagues), so only the league_id, team_id, and a friendly label vary."""
+    label: str
+    league_id: int
     team_id: int | None
+
+
+def _parse_espn_leagues(
+    raw: str | None, fallback_id: int | None, fallback_team: int | None
+) -> list[ESPNLeague]:
+    """Parse ESPN_LEAGUES ("Label:leagueId:teamId, Label2:leagueId2:teamId2").
+
+    teamId is optional per entry. Falls back to the single ESPN_LEAGUE_ID /
+    ESPN_TEAM_ID pair (labeled "ESPN") when ESPN_LEAGUES isn't set, so older
+    single-league setups keep working unchanged.
+    """
+    leagues: list[ESPNLeague] = []
+    if raw:
+        for chunk in raw.split(","):
+            parts = [p.strip() for p in chunk.split(":")]
+            if len(parts) < 2 or not parts[0]:
+                continue
+            lid = _int_or_none(parts[1])
+            if lid is None:
+                continue
+            tid = _int_or_none(parts[2]) if len(parts) >= 3 else None
+            leagues.append(ESPNLeague(label=parts[0], league_id=lid, team_id=tid))
+    if not leagues and fallback_id is not None:
+        leagues.append(
+            ESPNLeague(label="ESPN", league_id=fallback_id, team_id=fallback_team)
+        )
+    return leagues
+
+
+@dataclass
+class ESPNConfig:
+    leagues: list[ESPNLeague]
     espn_s2: str | None
     swid: str | None
     year: int
 
     @property
     def enabled(self) -> bool:
-        return self.league_id is not None
+        return len(self.leagues) > 0
 
     @property
     def is_private(self) -> bool:
@@ -109,8 +144,11 @@ class Config:
         data_dir = Path(os.getenv("DATA_DIR", "data")).expanduser()
         return cls(
             espn=ESPNConfig(
-                league_id=_int_or_none(os.getenv("ESPN_LEAGUE_ID")),
-                team_id=_int_or_none(os.getenv("ESPN_TEAM_ID")),
+                leagues=_parse_espn_leagues(
+                    os.getenv("ESPN_LEAGUES"),
+                    _int_or_none(os.getenv("ESPN_LEAGUE_ID")),
+                    _int_or_none(os.getenv("ESPN_TEAM_ID")),
+                ),
                 espn_s2=os.getenv("ESPN_S2") or None,
                 swid=_clean_swid(os.getenv("ESPN_SWID")),
                 year=_int_or_none(os.getenv("ESPN_YEAR")) or _default_season(),
