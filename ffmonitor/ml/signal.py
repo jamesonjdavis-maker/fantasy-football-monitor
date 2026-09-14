@@ -24,6 +24,23 @@ def attach_projection_ranges(snapshot: dict) -> None:
         print(f"[ml] Monte Carlo unavailable this run: {exc}")
 
 
+def get_replacement_levels() -> dict | None:
+    """Per-position replacement level (weekly PPG) so waiver value can be scored
+    over replacement, making positions comparable. None if unavailable."""
+    try:
+        from .history import replacement_levels
+    except Exception as exc:  # pragma: no cover
+        print(f"[ml] replacement-levels module unavailable: {exc}")
+        return None
+    try:
+        lv = replacement_levels()
+        print(f"[ml] replacement levels: {lv}")
+        return lv
+    except Exception as exc:
+        print(f"[ml] replacement levels unavailable this run: {exc}")
+        return None
+
+
 def get_production_thresholds() -> dict | None:
     """Historical per-position 'notably rising' thresholds (recent PPG vs season
     average), calibrated from many completed seasons. Returns None if the

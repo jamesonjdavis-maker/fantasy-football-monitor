@@ -146,24 +146,29 @@ def _trending_at_weak_positions(
     return flags
 
 
+_SCARCITY_BONUS = 3.0  # points added when an FA fills a position you're weak at
+
+
 def _waiver_targets(
     platform: str,
     snap: dict,
     thresholds: Thresholds,
-    production_thresholds: dict | None,
+    replacement: dict | None = None,
     top_n: int = 3,
 ) -> list[dict]:
-    """Rank available free agents into the best pickups for THIS roster, blending
-    several signals into one interpretable value score:
-      - base weekly projection (ESPN)
-      - scarcity: boosted if the FA plays a position you're weak at
+    """Rank available free agents into the best pickups for THIS roster. The
+    value score is **over replacement** so positions compare fairly:
+      - base: projection minus the position's replacement level (a freely
+        available player at that spot) — a 9-pt TE beats a 9-pt WR
       - upside: credit for Monte Carlo ceiling above the projection (if ML on)
       - hot form: credit when recent PPG beats their season average
+      - scarcity: a flat bonus if the FA fills a position you're weak at
     Emits the top N as ranked 'waiver_target' flags."""
     fas = snap.get("free_agents", [])
     if not fas:
         return []
     weak = _weak_positions(snap, thresholds)
+    repl = replacement or {}
 
     scored: list[tuple[float, dict, float, list[str]]] = []
     for fa in fas:
@@ -171,12 +176,12 @@ def _waiver_targets(
         if proj is None or proj < 4.0:  # ignore roster-filler noise
             continue
         pos = fa.get("position")
-        value = float(proj)
         reasons: list[str] = []
 
-        if pos in weak:
-            value *= 1.25
-            reasons.append(f"weak at {pos}")
+        # Value over replacement: points above a freely-available player at this
+        # position. Falls back to raw projection when no baseline is available.
+        baseline = repl.get(pos)
+        value = float(proj) - baseline if baseline is not None else float(proj)
 
         ceiling = fa.get("proj_ceiling")
         if ceiling is not None:
@@ -190,6 +195,10 @@ def _waiver_targets(
             if recent_ppg > avg:
                 value += (recent_ppg - avg) * 0.5
                 reasons.append("hot form")
+
+        if pos in weak:
+            value += _SCARCITY_BONUS  # additive so it always raises priority
+            reasons.append(f"weak at {pos}")
 
         owned = fa.get("percent_owned") or 0
         if owned and owned > 100:  # Sleeper trending-add count
@@ -313,6 +322,7 @@ def analyze(
     snapshot: dict,
     thresholds: Thresholds,
     production_thresholds: dict | None = None,
+    replacement_levels: dict | None = None,
 ) -> list[dict]:
     """Return all point-in-time flags across platforms, most severe first.
 
@@ -328,7 +338,7 @@ def analyze(
             continue
         flags.extend(_bench_beats_starter(platform, snap, thresholds))
         flags.extend(
-            _waiver_targets(platform, snap, thresholds, production_thresholds)
+            _waiver_targets(platform, snap, thresholds, replacement_levels)
         )
         flags.extend(_rising_production_flags(platform, snap, production_thresholds))
         flags.extend(_projection_range_flags(platform, snap))

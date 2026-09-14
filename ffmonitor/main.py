@@ -42,13 +42,18 @@ def run(config: Config, min_severity: str = "low") -> int:
     #  - Monte Carlo floor/ceiling attached to each roster player
     #  - "heating up" thresholds (history-calibrated) for the rising signal
     production_thresholds = None
+    replacement_levels = None
     if config.enable_ml:
         from .ml import signal as ml_signal
 
         ml_signal.attach_projection_ranges(current)
         production_thresholds = ml_signal.get_production_thresholds()
+        replacement_levels = ml_signal.get_replacement_levels()
     flags = analyze.analyze(
-        current, config.thresholds, production_thresholds=production_thresholds
+        current,
+        config.thresholds,
+        production_thresholds=production_thresholds,
+        replacement_levels=replacement_levels,
     )
 
     path = storage.save(config.data_dir, current)

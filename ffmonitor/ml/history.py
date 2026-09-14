@@ -30,6 +30,42 @@ def _completed_seasons(n: int) -> list[int]:
     return list(range(current - n, current))
 
 
+# Roughly the "last startable" rank per position in a 12-team league — the
+# freely-available replacement level. A player's value is measured above this.
+_REPLACEMENT_RANK = {"QB": 14, "RB": 30, "WR": 36, "TE": 14}
+
+
+@lru_cache(maxsize=4)
+def replacement_levels(n_seasons: int | None = None) -> dict:
+    """Per-position replacement level in weekly PPG: the typical output of the
+    last startable player at that position. Subtracting this makes points
+    comparable across positions (a 9-pt TE beats a 9-pt WR)."""
+    import pandas as pd
+
+    from .data import _weekly_raw
+
+    n = n_seasons or default_n_seasons()
+    df = _weekly_raw(tuple(_completed_seasons(n))).copy()
+    if "season_type" in df.columns:
+        df = df[df["season_type"] == "REG"]
+    df = df[df["position"].isin(_POSITIONS)].copy()
+    df["ppr"] = pd.to_numeric(df.get("fantasy_points_ppr", 0), errors="coerce").fillna(0.0)
+
+    levels: dict[str, float] = {}
+    for pos, rank in _REPLACEMENT_RANK.items():
+        pos_df = df[df["position"] == pos]
+
+        def _at_rank(group) -> float:
+            ranked = group["ppr"].sort_values(ascending=False).to_numpy()
+            if len(ranked) == 0:
+                return 0.0
+            return float(ranked[min(rank - 1, len(ranked) - 1)])
+
+        per_week = pos_df.groupby(["season", "week"]).apply(_at_rank)
+        levels[pos] = round(float(per_week.mean()) if len(per_week) else 0.0, 1)
+    return levels
+
+
 def default_n_seasons() -> int:
     raw = os.getenv("HISTORY_SEASONS", "").strip()
     try:
