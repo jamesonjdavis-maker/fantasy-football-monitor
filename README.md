@@ -110,7 +110,10 @@ prints what it *would* have sent to the terminal.
 2. Add your secrets: **Repo → Settings → Secrets and variables → Actions → New
    repository secret**. Set the ones you use:
    - `SLEEPER_LEAGUE_ID`, `SLEEPER_USERNAME` (or `SLEEPER_USER_ID`)
-   - `ESPN_LEAGUE_ID`, `ESPN_TEAM_ID`, and for private leagues `ESPN_S2`, `ESPN_SWID`
+   - `ESPN_LEAGUES` = `Label:leagueId:teamId, …` (one line, all your ESPN
+     leagues) — or a single `ESPN_LEAGUE_ID` + `ESPN_TEAM_ID`
+   - `ESPN_S2`, `ESPN_SWID` (private leagues; **one pair covers all your
+     leagues** — cookies are account-level, not per-league)
    - `NTFY_TOPIC` (and/or `DISCORD_WEBHOOK_URL`)
 3. The workflow runs daily (13:00 UTC ≈ 9am ET, plus a Sunday-morning check).
    Trigger it by hand any time from **Actions → Fantasy Football Monitor → Run

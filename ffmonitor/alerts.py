@@ -59,6 +59,19 @@ def _grouped(items: list[dict]) -> dict[str, list[dict]]:
     return out
 
 
+def _source_label(key: str | None) -> str:
+    """Friendly league label from a source key: 'espn:BBL' -> 'BBL'."""
+    if not key:
+        return ""
+    return key.split(":", 1)[1] if ":" in key else key.capitalize()
+
+
+def _is_multi_source(items: list[dict]) -> bool:
+    """True when the alert spans more than one league/platform, so each line
+    should be tagged with which league it came from."""
+    return len({it.get("platform") for it in items}) > 1
+
+
 def _first_week(snapshot: dict) -> Any:
     for snap in snapshot.get("platforms", {}).values():
         if isinstance(snap, dict) and snap.get("week"):
@@ -71,10 +84,11 @@ def _footer(snapshot: dict) -> str:
     for name, snap in snapshot.get("platforms", {}).items():
         if not isinstance(snap, dict):
             continue
+        label = snap.get("label") or _source_label(name)
         if snap.get("error"):
-            parts.append(f"{name}: ⚠️ error")
+            parts.append(f"{label}: ⚠️ error")
         elif snap.get("enabled"):
-            parts.append(f"{name}: {snap.get('team_name', 'team')}")
+            parts.append(f"{label}: {snap.get('team_name', 'team')}")
     return " • ".join(parts) or "Fantasy Football Monitor"
 
 
@@ -87,12 +101,14 @@ def build_ntfy(snapshot: dict, items: list[dict]) -> tuple[str, str, str]:
     week = _first_week(snapshot)
     title = f"Fantasy update - Week {week} ({len(items)} item{'s' if len(items) != 1 else ''})"
 
+    multi = _is_multi_source(items)
     lines: list[str] = []
     for label, group in _grouped(items).items():
         lines.append(label)
         for it in group[:_MAX_LINES_PER_GROUP]:
             emoji = _SEVERITY_EMOJI.get(it.get("severity", "info"), "•")
-            lines.append(f"  {emoji} {it['message']}")
+            tag = f"[{_source_label(it.get('platform'))}] " if multi else ""
+            lines.append(f"  {emoji} {tag}{it['message']}")
         if len(group) > _MAX_LINES_PER_GROUP:
             lines.append(f"  …and {len(group) - _MAX_LINES_PER_GROUP} more")
         lines.append("")
@@ -116,19 +132,21 @@ def send_ntfy(server: str, topic: str, title: str, body: str, priority: str) -> 
 # --------------------------------------------------------------------------- #
 # Discord backend
 # --------------------------------------------------------------------------- #
-def _discord_lines(items: list[dict]) -> str:
+def _discord_lines(items: list[dict], multi: bool) -> str:
     lines = []
     for it in items[:_MAX_LINES_PER_GROUP]:
         emoji = _SEVERITY_EMOJI.get(it.get("severity", "info"), "•")
-        lines.append(f"{emoji} {it['message']}")
+        tag = f"[{_source_label(it.get('platform'))}] " if multi else ""
+        lines.append(f"{emoji} {tag}{it['message']}")
     if len(items) > _MAX_LINES_PER_GROUP:
         lines.append(f"…and {len(items) - _MAX_LINES_PER_GROUP} more")
     return ("\n".join(lines) or "—")[:_MAX_FIELD_LEN]
 
 
 def build_discord_embed(snapshot: dict, items: list[dict]) -> dict:
+    multi = _is_multi_source(items)
     fields = [
-        {"name": label, "value": _discord_lines(group), "inline": False}
+        {"name": label, "value": _discord_lines(group, multi), "inline": False}
         for label, group in _grouped(items).items()
     ]
     return {

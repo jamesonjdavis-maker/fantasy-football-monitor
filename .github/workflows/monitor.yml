@@ -39,7 +39,10 @@ jobs:
 
       - name: Run monitor
         env:
-          # ESPN (ESPN_S2 / ESPN_SWID only needed for private leagues)
+          # ESPN — cookies are account-level (one pair covers all leagues).
+          # Multi-league: ESPN_LEAGUES = "Label:leagueId:teamId, Label2:leagueId2:teamId2"
+          # Single league still works via ESPN_LEAGUE_ID / ESPN_TEAM_ID.
+          ESPN_LEAGUES: ${{ secrets.ESPN_LEAGUES }}
           ESPN_LEAGUE_ID: ${{ secrets.ESPN_LEAGUE_ID }}
           ESPN_TEAM_ID: ${{ secrets.ESPN_TEAM_ID }}
           ESPN_S2: ${{ secrets.ESPN_S2 }}
