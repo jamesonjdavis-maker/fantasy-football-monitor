@@ -35,7 +35,10 @@ jobs:
           cache-dependency-path: requirements.txt
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        # requirements-ml.txt (nfl_data_py, pandas) powers the ML rising-usage
+        # signal. If it ever causes trouble, drop it and unset ENABLE_ML below —
+        # the core monitor runs fine without it.
+        run: pip install -r requirements.txt -r requirements-ml.txt
 
       - name: Run monitor
         env:
@@ -58,6 +61,8 @@ jobs:
           # Daily 13:00 UTC run always sends (a "daily digest", quiet or not).
           # The Sunday 16:30 run and unchecked manual runs only ping on news.
           ALWAYS_NOTIFY: ${{ github.event.schedule == '0 13 * * *' || inputs.always_notify }}
+          # Turn on the ML rising-usage breakout signal.
+          ENABLE_ML: "1"
         run: python -m ffmonitor.main
 
       - name: Commit updated snapshot
