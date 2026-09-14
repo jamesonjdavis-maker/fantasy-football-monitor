@@ -1,8 +1,11 @@
-"""Discord webhook alerting.
+"""Alerting: sends a notification only when there's something worth flagging.
 
-Sends a single rich embed only when there's something worth flagging. The
-webhook URL comes from the DISCORD_WEBHOOK_URL secret; if it's missing we print
-to stdout instead so the tool still works locally without a webhook.
+Two backends, chosen by which secrets are set (you can enable both):
+  * ntfy      — free phone push (set NTFY_TOPIC); default channel
+  * Discord   — rich embed webhook (set DISCORD_WEBHOOK_URL)
+
+If neither is configured, the alert is printed to stdout so the tool still
+works locally without any push target.
 """
 
 from __future__ import annotations
@@ -11,30 +14,15 @@ from typing import Any
 
 import requests
 
-# Discord embed colors (decimal) by top severity.
-_COLORS = {"high": 0xE03131, "medium": 0xF08C00, "low": 0x1971C2, "info": 0x2F9E44}
 _SEVERITY_EMOJI = {"high": "🔴", "medium": "🟠", "low": "🔵", "info": "⚪"}
-_MAX_FIELD_LEN = 1024
 _MAX_LINES_PER_GROUP = 12
 
+# --- Discord specifics ---
+_COLORS = {"high": 0xE03131, "medium": 0xF08C00, "low": 0x1971C2, "info": 0x2F9E44}
+_MAX_FIELD_LEN = 1024
 
-def _group(items: list[dict], key: str) -> dict[str, list[dict]]:
-    out: dict[str, list[dict]] = {}
-    for it in items:
-        out.setdefault(it.get(key, "?"), []).append(it)
-    return out
-
-
-def _lines(items: list[dict]) -> str:
-    lines = []
-    for it in items[:_MAX_LINES_PER_GROUP]:
-        emoji = _SEVERITY_EMOJI.get(it.get("severity", "info"), "•")
-        lines.append(f"{emoji} {it['message']}")
-    if len(items) > _MAX_LINES_PER_GROUP:
-        lines.append(f"…and {len(items) - _MAX_LINES_PER_GROUP} more")
-    text = "\n".join(lines) or "—"
-    return text[:_MAX_FIELD_LEN]
-
+# --- ntfy specifics: severity -> priority (5=urgent … 1=min) ---
+_NTFY_PRIORITY = {"high": "5", "medium": "4", "low": "3", "info": "3"}
 
 _KIND_LABELS = {
     "injury_change": "🩹 Injury updates",
@@ -47,43 +35,28 @@ _KIND_LABELS = {
 }
 
 
-def build_embed(snapshot: dict, events: list[dict], flags: list[dict]) -> dict:
-    items = events + flags
-    top_severity = "info"
-    for it in items:
-        if _sev_rank(it["severity"]) > _sev_rank(top_severity):
-            top_severity = it["severity"]
-
-    # Group all items by their display label.
-    grouped: dict[str, list[dict]] = {}
-    for it in items:
-        label = _KIND_LABELS.get(it.get("kind"), "ℹ️ Other")
-        grouped.setdefault(label, []).append(it)
-
-    fields = []
-    for label, group in grouped.items():
-        fields.append({"name": label, "value": _lines(group), "inline": False})
-
-    week = _first_week(snapshot)
-    return {
-        "username": "Fantasy Football Monitor",
-        "embeds": [
-            {
-                "title": f"🏈 Fantasy update — Week {week}",
-                "description": f"{len(items)} item(s) worth a look.",
-                "color": _COLORS.get(top_severity, 0x2F9E44),
-                "fields": fields[:25],  # Discord caps embeds at 25 fields
-                "footer": {"text": _footer(snapshot)},
-                "timestamp": snapshot.get("generated_at"),
-            }
-        ],
-    }
-
-
+# --------------------------------------------------------------------------- #
+# Shared helpers
+# --------------------------------------------------------------------------- #
 def _sev_rank(sev: str) -> int:
     from .diff import SEVERITY_ORDER
 
     return SEVERITY_ORDER.get(sev, 0)
+
+
+def _top_severity(items: list[dict]) -> str:
+    top = "info"
+    for it in items:
+        if _sev_rank(it["severity"]) > _sev_rank(top):
+            top = it["severity"]
+    return top
+
+
+def _grouped(items: list[dict]) -> dict[str, list[dict]]:
+    out: dict[str, list[dict]] = {}
+    for it in items:
+        out.setdefault(_KIND_LABELS.get(it.get("kind"), "ℹ️ Other"), []).append(it)
+    return out
 
 
 def _first_week(snapshot: dict) -> Any:
@@ -105,22 +78,106 @@ def _footer(snapshot: dict) -> str:
     return " • ".join(parts) or "Fantasy Football Monitor"
 
 
+# --------------------------------------------------------------------------- #
+# ntfy backend
+# --------------------------------------------------------------------------- #
+def build_ntfy(snapshot: dict, items: list[dict]) -> tuple[str, str, str]:
+    """Return (title, body, priority) for an ntfy push. Body is UTF-8 plain
+    text; the title is kept ASCII since ntfy headers dislike non-ASCII."""
+    week = _first_week(snapshot)
+    title = f"Fantasy update - Week {week} ({len(items)} item{'s' if len(items) != 1 else ''})"
+
+    lines: list[str] = []
+    for label, group in _grouped(items).items():
+        lines.append(label)
+        for it in group[:_MAX_LINES_PER_GROUP]:
+            emoji = _SEVERITY_EMOJI.get(it.get("severity", "info"), "•")
+            lines.append(f"  {emoji} {it['message']}")
+        if len(group) > _MAX_LINES_PER_GROUP:
+            lines.append(f"  …and {len(group) - _MAX_LINES_PER_GROUP} more")
+        lines.append("")
+    body = "\n".join(lines).strip() or "Nothing to report."
+    return title, body, _NTFY_PRIORITY.get(_top_severity(items), "3")
+
+
+def send_ntfy(server: str, topic: str, title: str, body: str, priority: str) -> bool:
+    url = f"{server.rstrip('/')}/{topic}"
+    headers = {
+        "Title": title,
+        "Priority": priority,
+        "Tags": "football",
+        "Markdown": "no",
+    }
+    resp = requests.post(url, data=body.encode("utf-8"), headers=headers, timeout=30)
+    resp.raise_for_status()
+    return True
+
+
+# --------------------------------------------------------------------------- #
+# Discord backend
+# --------------------------------------------------------------------------- #
+def _discord_lines(items: list[dict]) -> str:
+    lines = []
+    for it in items[:_MAX_LINES_PER_GROUP]:
+        emoji = _SEVERITY_EMOJI.get(it.get("severity", "info"), "•")
+        lines.append(f"{emoji} {it['message']}")
+    if len(items) > _MAX_LINES_PER_GROUP:
+        lines.append(f"…and {len(items) - _MAX_LINES_PER_GROUP} more")
+    return ("\n".join(lines) or "—")[:_MAX_FIELD_LEN]
+
+
+def build_discord_embed(snapshot: dict, items: list[dict]) -> dict:
+    fields = [
+        {"name": label, "value": _discord_lines(group), "inline": False}
+        for label, group in _grouped(items).items()
+    ]
+    return {
+        "username": "Fantasy Football Monitor",
+        "embeds": [
+            {
+                "title": f"🏈 Fantasy update — Week {_first_week(snapshot)}",
+                "description": f"{len(items)} item(s) worth a look.",
+                "color": _COLORS.get(_top_severity(items), 0x2F9E44),
+                "fields": fields[:25],
+                "footer": {"text": _footer(snapshot)},
+                "timestamp": snapshot.get("generated_at"),
+            }
+        ],
+    }
+
+
 def send_discord(webhook_url: str, embed: dict) -> bool:
-    """POST the embed to Discord. Returns True on success."""
     resp = requests.post(webhook_url, json=embed, timeout=30)
     resp.raise_for_status()
     return True
 
 
-def notify(
-    webhook_url: str | None, snapshot: dict, events: list[dict], flags: list[dict]
-) -> None:
-    embed = build_embed(snapshot, events, flags)
-    if not webhook_url:
-        print("[alerts] No DISCORD_WEBHOOK_URL set; would have sent:")
-        for e in embed["embeds"]:
-            for f in e.get("fields", []):
-                print(f"  {f['name']}\n    " + f["value"].replace("\n", "\n    "))
-        return
-    send_discord(webhook_url, embed)
-    print("[alerts] Discord alert sent.")
+# --------------------------------------------------------------------------- #
+# Dispatch
+# --------------------------------------------------------------------------- #
+def notify(config, snapshot: dict, events: list[dict], flags: list[dict]) -> None:
+    """Send to every configured channel; fall back to stdout if none set."""
+    items = events + flags
+    sent_any = False
+
+    if getattr(config, "ntfy_topic", None):
+        title, body, priority = build_ntfy(snapshot, items)
+        try:
+            send_ntfy(config.ntfy_server, config.ntfy_topic, title, body, priority)
+            print(f"[alerts] ntfy push sent to topic '{config.ntfy_topic}'.")
+            sent_any = True
+        except requests.RequestException as exc:
+            print(f"[alerts] ntfy send failed: {exc}")
+
+    if getattr(config, "discord_webhook_url", None):
+        embed = build_discord_embed(snapshot, items)
+        try:
+            send_discord(config.discord_webhook_url, embed)
+            print("[alerts] Discord alert sent.")
+            sent_any = True
+        except requests.RequestException as exc:
+            print(f"[alerts] Discord send failed: {exc}")
+
+    if not sent_any:
+        title, body, _ = build_ntfy(snapshot, items)
+        print(f"[alerts] No push channel configured. Would have sent:\n{title}\n{body}")

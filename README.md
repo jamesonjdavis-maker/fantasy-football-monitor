@@ -3,8 +3,8 @@
 Daily watchdog for your **ESPN** and **Sleeper** fantasy leagues. It pulls your
 roster, bench, and free agents from both platforms, saves a JSON snapshot,
 diffs it against yesterday to catch *real* changes, flags start/sit and waiver
-opportunities, and pings you on **Discord** — but only when something's actually
-worth your attention.
+opportunities, and pings your phone via **ntfy** (or Discord) — but only when
+something's actually worth your attention.
 
 ## What it does
 
@@ -20,7 +20,8 @@ worth your attention.
   - **bench players projected to outscore a starter** (start/sit nudges)
   - **weak starting slots** (low projection, injured, or bye) paired with
     trending free agents who could fill them
-- **Alerts** via a single Discord embed — and stays silent on quiet days.
+- **Alerts** via a phone push (ntfy) or Discord embed — and stays silent on
+  quiet days.
 - **Runs on a schedule** via GitHub Actions, committing each snapshot back to
   the repo so day-over-day diffing works with zero external storage.
 - **Keeps every credential in GitHub Secrets** — nothing sensitive is in code.
@@ -39,7 +40,7 @@ fantasy-football-monitor/
 │   ├── storage.py           # save / load / prune snapshots
 │   ├── diff.py              # day-over-day change events
 │   ├── analyze.py           # bench>starter, weak-position pickups
-│   ├── alerts.py            # Discord webhook formatting + send
+│   ├── alerts.py            # ntfy / Discord formatting + send
 │   └── main.py              # entry point: snapshot → diff → analyze → alert
 ├── .github/workflows/monitor.yml
 ├── data/                    # snapshots live here (committed by CI)
@@ -74,12 +75,20 @@ fantasy-football-monitor/
 > Tell me your league IDs and whether each is public or private and I'll tell
 > you exactly which secrets you need to set.
 
-### 2. Create the Discord webhook
+### 2. Set up alerts (ntfy — free phone push)
 
-In the Discord server/channel you want alerts in:
-**Server Settings → Integrations → Webhooks → New Webhook → Copy Webhook URL.**
-That URL *is* the credential — anyone with it can post to your channel, so keep
-it in Secrets.
+1. Install the **ntfy** app (iOS/Android) or use [ntfy.sh](https://ntfy.sh) in a
+   browser.
+2. Pick an **unguessable topic name** — e.g. `jameson-ff-a7x9k2`. There are no
+   accounts in ntfy; the topic name *is* the whole secret, and anyone who knows
+   it can read your alerts, so don't use something obvious like `fantasy`.
+3. In the app, **Subscribe** to that exact topic.
+4. Use the same name as the `NTFY_TOPIC` secret.
+
+Prefer Discord instead (or as well)? Create a webhook via **Server Settings →
+Integrations → Webhooks → New Webhook → Copy Webhook URL** and set
+`DISCORD_WEBHOOK_URL`. Set either or both; the tool sends to whatever's
+configured.
 
 ### 3. Try it locally (optional but recommended)
 
@@ -92,7 +101,7 @@ ALWAYS_NOTIFY=1 python -m ffmonitor.main   # forces a test alert
 ```
 
 `ALWAYS_NOTIFY=1` makes it alert even when nothing's flagged, so you can confirm
-the Discord webhook works. Drop it for normal runs. Without a webhook set, it
+your ntfy/Discord setup works. Drop it for normal runs. With no channel set, it
 prints what it *would* have sent to the terminal.
 
 ### 4. Put it on GitHub with Actions
@@ -102,7 +111,7 @@ prints what it *would* have sent to the terminal.
    repository secret**. Set the ones you use:
    - `SLEEPER_LEAGUE_ID`, `SLEEPER_USERNAME` (or `SLEEPER_USER_ID`)
    - `ESPN_LEAGUE_ID`, `ESPN_TEAM_ID`, and for private leagues `ESPN_S2`, `ESPN_SWID`
-   - `DISCORD_WEBHOOK_URL`
+   - `NTFY_TOPIC` (and/or `DISCORD_WEBHOOK_URL`)
 3. The workflow runs daily (13:00 UTC ≈ 9am ET, plus a Sunday-morning check).
    Trigger it by hand any time from **Actions → Fantasy Football Monitor → Run
    workflow** — tick *always_notify* there to test the webhook end-to-end.
