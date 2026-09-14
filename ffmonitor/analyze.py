@@ -30,6 +30,18 @@ def _bench(roster: list[dict]) -> list[dict]:
     return [p for p in roster if p.get("slot") == "bench"]
 
 
+def _range_note(bench: dict, starter: dict) -> str:
+    """Append Monte Carlo floor–ceiling ranges to a start/sit line when
+    available, so the swap's risk profile is visible."""
+    if bench.get("proj_floor") is None or starter.get("proj_floor") is None:
+        return ""
+    return (
+        f" | ranges {bench['name'].split()[-1]} {bench['proj_floor']}–"
+        f"{bench['proj_ceiling']} vs {starter['name'].split()[-1]} "
+        f"{starter['proj_floor']}–{starter['proj_ceiling']}"
+    )
+
+
 def _bench_beats_starter(
     platform: str, snap: dict, thresholds: Thresholds
 ) -> list[dict]:
@@ -72,6 +84,7 @@ def _bench_beats_starter(
                             f"Start {b['name']} ({pos}, {bproj:.1f}) over "
                             f"{s['name']} ({s.get('position')}, "
                             f"{sproj if sproj is not None else '?'}) — {reason}"
+                            + _range_note(b, s)
                         ),
                         "bench_player": b,
                         "starter": s,
@@ -176,6 +189,54 @@ def _rising_production_flags(
     return flags
 
 
+def _projection_range_flags(platform: str, snap: dict) -> list[dict]:
+    """Monte Carlo floor/ceiling insight (only fires when ranges are attached):
+    surface a bench player who, despite an equal-or-lower median projection than
+    a same-position starter, offers a notably higher CEILING (upside dart) or
+    higher FLOOR (safer play) — the nuance a single projection can't show."""
+    CEIL_MARGIN = 3.0
+    FLOOR_MARGIN = 2.0
+
+    def _ranged(players: list[dict]) -> list[dict]:
+        return [p for p in players if p.get("proj_ceiling") is not None]
+
+    starters = _ranged([p for p in snap.get("roster", []) if p.get("slot") == "starter"])
+    bench = _ranged([p for p in snap.get("roster", []) if p.get("slot") == "bench"])
+    flags: list[dict] = []
+
+    for b in bench:
+        pos = b.get("position")
+        peers = [s for s in starters if s.get("position") == pos]
+        for s in peers:
+            # Only add insight the point projection doesn't already give: the
+            # bench player's median is not higher, yet a tail is.
+            if b["proj_median"] > s["proj_median"]:
+                continue
+            if b["proj_ceiling"] >= s["proj_ceiling"] + CEIL_MARGIN:
+                flags.append({
+                    "platform": platform, "kind": "mc_upside", "severity": "low",
+                    "message": (
+                        f"Upside dart: {b['name']} ({pos}) ceiling "
+                        f"{b['proj_ceiling']} vs {s['name']} ceiling "
+                        f"{s['proj_ceiling']} — more boom if you need points"
+                    ),
+                    "bench_player": b, "starter": s,
+                })
+                break
+            if b["proj_floor"] >= s["proj_floor"] + FLOOR_MARGIN:
+                flags.append({
+                    "platform": platform, "kind": "mc_floor", "severity": "low",
+                    "message": (
+                        f"Safer floor: {b['name']} ({pos}) floor "
+                        f"{b['proj_floor']} vs {s['name']} floor "
+                        f"{s['proj_floor']} — steadier if you're protecting a lead"
+                    ),
+                    "bench_player": b, "starter": s,
+                })
+                break
+    return flags
+
+
 def analyze(
     snapshot: dict,
     thresholds: Thresholds,
@@ -196,6 +257,7 @@ def analyze(
         flags.extend(_bench_beats_starter(platform, snap, thresholds))
         flags.extend(_trending_at_weak_positions(platform, snap, thresholds))
         flags.extend(_rising_production_flags(platform, snap, production_thresholds))
+        flags.extend(_projection_range_flags(platform, snap))
 
     flags.sort(key=lambda f: SEVERITY_ORDER.get(f["severity"], 0), reverse=True)
     return flags

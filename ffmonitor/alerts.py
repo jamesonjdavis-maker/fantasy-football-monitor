@@ -34,6 +34,8 @@ _KIND_LABELS = {
     "weak_position_fa": "🎯 Weak-position pickups",
     "ml_rising_fa": "🔥 Heating up (recent form vs history)",
     "ml_rising_bench": "🔥 Heating up (recent form vs history)",
+    "mc_upside": "🎲 Floor/ceiling (Monte Carlo)",
+    "mc_floor": "🎲 Floor/ceiling (Monte Carlo)",
 }
 
 

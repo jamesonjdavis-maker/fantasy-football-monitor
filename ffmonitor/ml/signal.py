@@ -9,6 +9,21 @@ run proceeds without breakout flags.
 from __future__ import annotations
 
 
+def attach_projection_ranges(snapshot: dict) -> None:
+    """Add Monte Carlo floor/median/ceiling to each roster player, in place.
+    Safe no-op if numpy/pandas or history data are unavailable."""
+    try:
+        from .montecarlo import attach_ranges
+    except Exception as exc:  # pragma: no cover
+        print(f"[ml] montecarlo module unavailable: {exc}")
+        return
+    try:
+        attach_ranges(snapshot)
+        print("[ml] Monte Carlo floor/ceiling attached to rosters.")
+    except Exception as exc:
+        print(f"[ml] Monte Carlo unavailable this run: {exc}")
+
+
 def get_production_thresholds() -> dict | None:
     """Historical per-position 'notably rising' thresholds (recent PPG vs season
     average), calibrated from many completed seasons. Returns None if the

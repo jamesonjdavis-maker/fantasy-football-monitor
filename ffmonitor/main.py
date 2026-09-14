@@ -38,12 +38,14 @@ def run(config: Config, min_severity: str = "low") -> int:
     previous = storage.load_previous(config.data_dir)
     events = diff.diff_snapshots(previous, current)
 
-    # ML "heating up" signal: current-season form (ESPN) vs history-calibrated
-    # thresholds (nfl_data_py). Safe no-op if the history pull is unavailable.
+    # ML add-ons (safe no-ops if deps/data unavailable):
+    #  - Monte Carlo floor/ceiling attached to each roster player
+    #  - "heating up" thresholds (history-calibrated) for the rising signal
     production_thresholds = None
     if config.enable_ml:
         from .ml import signal as ml_signal
 
+        ml_signal.attach_projection_ranges(current)
         production_thresholds = ml_signal.get_production_thresholds()
     flags = analyze.analyze(
         current, config.thresholds, production_thresholds=production_thresholds
