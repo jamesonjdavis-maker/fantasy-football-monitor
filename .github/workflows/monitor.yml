@@ -55,7 +55,9 @@ jobs:
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
           NTFY_SERVER: ${{ secrets.NTFY_SERVER }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-          ALWAYS_NOTIFY: ${{ inputs.always_notify }}
+          # Daily 13:00 UTC run always sends (a "daily digest", quiet or not).
+          # The Sunday 16:30 run and unchecked manual runs only ping on news.
+          ALWAYS_NOTIFY: ${{ github.event.schedule == '0 13 * * *' || inputs.always_notify }}
         run: python -m ffmonitor.main
 
       - name: Commit updated snapshot
