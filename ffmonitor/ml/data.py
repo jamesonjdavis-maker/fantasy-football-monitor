@@ -39,15 +39,38 @@ _WANTED_COLUMNS = [
 
 
 def _import_weekly(seasons: list[int]):
-    """Thin wrapper so the heavy import is lazy and errors are friendly."""
+    """Fetch weekly data for the requested seasons, skipping any that aren't
+    published yet.
+
+    nflverse only hosts completed/in-progress seasons, so asking for a future
+    season — or the current one during the first week or two before it's
+    published — returns a 404. Rather than let that break the whole signal, we
+    fetch season-by-season and use whatever actually exists.
+    """
     try:
         import nfl_data_py as nfl
+        import pandas as pd
     except ImportError as exc:  # pragma: no cover
         raise RuntimeError(
-            "nfl_data_py is required for the ml module. "
-            "Install it with: pip install -r requirements-ml.txt"
+            "nfl_data_py/pandas are required for the ml module. "
+            "Install them with: pip install -r requirements-ml.txt"
         ) from exc
-    return nfl.import_weekly_data(seasons)
+
+    frames = []
+    used: list[int] = []
+    for yr in seasons:
+        try:
+            frames.append(nfl.import_weekly_data([yr]))
+            used.append(yr)
+        except Exception as exc:
+            print(f"[ml] weekly data for {yr} unavailable ({exc}); skipping")
+
+    if not frames:
+        raise RuntimeError(
+            f"no weekly data available for any of seasons {list(seasons)}"
+        )
+    print(f"[ml] weekly data loaded for seasons {used}")
+    return pd.concat(frames, ignore_index=True)
 
 
 @lru_cache(maxsize=8)
