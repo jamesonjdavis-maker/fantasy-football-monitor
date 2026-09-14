@@ -38,13 +38,16 @@ def run(config: Config, min_severity: str = "low") -> int:
     previous = storage.load_previous(config.data_dir)
     events = diff.diff_snapshots(previous, current)
 
-    # ML rising-usage signal (optional; safe no-op if deps/data unavailable).
-    rising_scores: dict = {}
+    # ML "heating up" signal: current-season form (ESPN) vs history-calibrated
+    # thresholds (nfl_data_py). Safe no-op if the history pull is unavailable.
+    production_thresholds = None
     if config.enable_ml:
         from .ml import signal as ml_signal
 
-        rising_scores = ml_signal.get_rising_scores()
-    flags = analyze.analyze(current, config.thresholds, rising_scores=rising_scores)
+        production_thresholds = ml_signal.get_production_thresholds()
+    flags = analyze.analyze(
+        current, config.thresholds, production_thresholds=production_thresholds
+    )
 
     path = storage.save(config.data_dir, current)
     storage.prune(config.data_dir)
