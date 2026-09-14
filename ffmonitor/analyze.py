@@ -317,10 +317,59 @@ def _projection_range_flags(platform: str, snap: dict) -> list[dict]:
     return flags
 
 
+def _game_script_flags(
+    platform: str, snap: dict, spreads: dict[str, float], threshold: float
+) -> list[dict]:
+    """Vegas game-script signal from point spreads: a heavy favorite runs more
+    (RB-friendly); a heavy underdog throws to catch up (RBs fade, pass-catchers
+    get garbage-time volume). Flags your rostered skill players on lopsided
+    games."""
+    if not spreads:
+        return []
+
+    def _flag(p: dict, note: str, sev: str) -> dict:
+        return {
+            "platform": platform,
+            "kind": "game_script",
+            "severity": sev,
+            "message": (
+                f"{p['name']} ({p.get('position')}, {p.get('pro_team')}) — {note}"
+            ),
+            "player": p,
+        }
+
+    flags: list[dict] = []
+    for p in snap.get("roster", []):
+        if p.get("slot") not in ("starter", "bench"):
+            continue
+        pos = p.get("position")
+        team = p.get("pro_team")
+        if pos not in ("RB", "WR", "TE") or not team:
+            continue
+        spread = spreads.get(team)
+        if spread is None:
+            continue
+        if spread <= -threshold and pos == "RB":
+            flags.append(_flag(
+                p, f"team favored by {abs(spread):.1f} — positive script (run-heavy)",
+                "medium"))
+        elif spread >= threshold:
+            if pos == "RB":
+                flags.append(_flag(
+                    p, f"team underdog by {spread:.1f} — negative script, carries may thin",
+                    "medium"))
+            else:  # WR / TE
+                flags.append(_flag(
+                    p, f"team underdog by {spread:.1f} — garbage-time target upside",
+                    "low"))
+    return flags
+
+
 def analyze(
     snapshot: dict,
     thresholds: Thresholds,
     production_thresholds: dict | None = None,
+    spreads: dict[str, float] | None = None,
 ) -> list[dict]:
     """Return all point-in-time flags across platforms, most severe first.
 
@@ -338,6 +387,9 @@ def analyze(
         flags.extend(_waiver_targets(platform, snap, thresholds))
         flags.extend(_rising_production_flags(platform, snap, production_thresholds))
         flags.extend(_projection_range_flags(platform, snap))
+        flags.extend(
+            _game_script_flags(platform, snap, spreads or {}, thresholds.game_script_spread)
+        )
 
     flags.sort(key=lambda f: SEVERITY_ORDER.get(f["severity"], 0), reverse=True)
     return flags

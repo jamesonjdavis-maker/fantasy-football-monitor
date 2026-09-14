@@ -124,6 +124,8 @@ class Thresholds:
     hot_add_min_count: int = 3000
     # Minimum ESPN percent_owned change to flag a free agent as rising.
     espn_hot_owned_pct: float = 40.0
+    # Point-spread size (favored or underdog) that triggers a game-script flag.
+    game_script_spread: float = 7.0
 
 
 @dataclass
