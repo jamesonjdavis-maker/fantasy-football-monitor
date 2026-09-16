@@ -1,0 +1,36 @@
+name: Ask the assistant
+
+# Ask a question about your leagues from anywhere (including the GitHub mobile
+# app): Actions -> "Ask the assistant" -> Run workflow -> type your question.
+# The answer is grounded in your latest snapshot and posted to Discord.
+on:
+  workflow_dispatch:
+    inputs:
+      question:
+        description: "Ask about your leagues (start/sit, waivers, matchups)"
+        required: true
+        type: string
+
+jobs:
+  ask:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Ask
+        env:
+          # Passed via env (not the command line) so the question can't break
+          # or inject into the shell.
+          QUESTION: ${{ inputs.question }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          OPENROUTER_MODEL: ${{ vars.OPENROUTER_MODEL }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: python -m ffmonitor.ask
