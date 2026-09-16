@@ -13,9 +13,41 @@ from typing import Any
 
 from .config import Thresholds
 
-# Positions a FLEX starter can be replaced from, for weak-position matching.
-_FLEX_POSITIONS = {"RB", "WR", "TE"}
 _UNAVAILABLE = {"OUT", "IR", "DOUBTFUL", "SUSPENDED", "PUP"}
+
+# Which player positions are eligible to fill each ESPN starting slot. A bench
+# player may only be suggested to replace a starter whose slot it can legally
+# occupy — e.g. a WR can take a FLEX slot but NOT a required TE slot.
+_SLOT_ELIGIBLE = {
+    "QB": {"QB"},
+    "RB": {"RB"},
+    "WR": {"WR"},
+    "TE": {"TE"},
+    "K": {"K"},
+    "D/ST": {"D/ST"},
+    "FLEX": {"RB", "WR", "TE"},
+    "RB/WR": {"RB", "WR"},
+    "WR/TE": {"WR", "TE"},
+    "RB/WR/TE": {"RB", "WR", "TE"},
+    "OP": {"QB", "RB", "WR", "TE"},          # superflex / offensive player
+    "SUPERFLEX": {"QB", "RB", "WR", "TE"},
+    "QB/RB/WR/TE": {"QB", "RB", "WR", "TE"},
+}
+
+
+def _can_fill(bench_pos: str | None, starter: dict) -> bool:
+    """True if a bench player of ``bench_pos`` can legally start in the slot the
+    ``starter`` occupies. Uses the starter's real lineup slot when known; with
+    no slot info (e.g. Sleeper) it falls back to same-position swaps only, so we
+    never suggest an illegal move like benching your only TE for a WR."""
+    if not bench_pos:
+        return False
+    slot = (starter.get("lineup_slot") or "").upper()
+    eligible = _SLOT_ELIGIBLE.get(slot)
+    if eligible is not None:
+        return bench_pos in eligible
+    # Unknown or missing slot: only a same-position swap is guaranteed legal.
+    return bench_pos == starter.get("position")
 
 
 def _proj(player: dict) -> float | None:
@@ -56,13 +88,9 @@ def _bench_beats_starter(
         if bproj is None:
             continue
         pos = b.get("position")
-        # Compare against starters at the same position (or FLEX-eligible).
-        candidates = [
-            s
-            for s in starters
-            if s.get("position") == pos
-            or (pos in _FLEX_POSITIONS and s.get("position") in _FLEX_POSITIONS)
-        ]
+        # Only compare against starters this bench player could legally replace
+        # in their lineup slot (a WR can take a FLEX slot but not a TE slot).
+        candidates = [s for s in starters if _can_fill(pos, s)]
         for s in candidates:
             sproj = _proj(s)
             if sproj is None:

@@ -2,10 +2,13 @@ name: Fantasy Football Monitor
 
 on:
   schedule:
-    # 13:00 UTC ≈ 9am ET daily. Injury designations and waiver activity update
-    # through the week, so a daily check catches most changes.
-    - cron: "0 13 * * *"
-    # Extra check Sunday late-morning ET before early games lock.
+    # 15:30 UTC ≈ 9:30am Mountain (MDT) daily. GitHub's scheduler adds a
+    # variable queue delay, and the top of the hour is the most congested slot,
+    # so we run at :30 to target ~10am Mountain delivery. NOTE: this is fixed
+    # UTC — after the Nov 2 switch to MST (UTC-7) shift to "30 16 * * *" to keep
+    # ~10am. Injury designations and waiver activity update through the week.
+    - cron: "30 15 * * *"
+    # Extra check Sunday late-morning before early games lock.
     - cron: "30 16 * * 0"
   workflow_dispatch: # manual "Run workflow" button
     inputs:
@@ -58,9 +61,9 @@ jobs:
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
           NTFY_SERVER: ${{ secrets.NTFY_SERVER }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-          # Daily 13:00 UTC run always sends (a "daily digest", quiet or not).
+          # Daily 15:30 UTC run always sends (a "daily digest", quiet or not).
           # The Sunday 16:30 run and unchecked manual runs only ping on news.
-          ALWAYS_NOTIFY: ${{ github.event.schedule == '0 13 * * *' || inputs.always_notify }}
+          ALWAYS_NOTIFY: ${{ github.event.schedule == '30 15 * * *' || inputs.always_notify }}
           # Turn on the ML rising-usage breakout signal.
           ENABLE_ML: "1"
         run: python -m ffmonitor.main

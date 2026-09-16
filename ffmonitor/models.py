@@ -29,6 +29,7 @@ def normalize_player(
     avg_points: float | None = None,
     percent_owned: float | None = None,
     on_bye: bool = False,
+    lineup_slot: str | None = None,
 ) -> dict[str, Any]:
     """Build one normalized player dict. Every field is JSON-serializable."""
     return {
@@ -37,6 +38,9 @@ def normalize_player(
         "position": (position or "").upper() or None,
         "pro_team": (pro_team or "").upper() or None,
         "slot": slot,  # STARTER / BENCH / IR
+        # Raw starting-slot string (e.g. "TE", "FLEX", "RB/WR/TE") so start/sit
+        # logic knows which slot a starter occupies and who can legally fill it.
+        "lineup_slot": (lineup_slot or "").upper() or None,
         "injury_status": _normalize_injury(injury_status),
         "proj_points": _round(proj_points),
         "actual_points": _round(actual_points),

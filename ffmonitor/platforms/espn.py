@@ -44,6 +44,7 @@ def _box_player(bp: Any) -> dict[str, Any]:
         position=getattr(bp, "position", None),
         pro_team=getattr(bp, "proTeam", None),
         slot=slot,
+        lineup_slot=getattr(bp, "slot_position", None),
         injury_status=getattr(bp, "injuryStatus", None),
         proj_points=proj,
         actual_points=actual,
