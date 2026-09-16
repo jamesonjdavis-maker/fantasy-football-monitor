@@ -10,6 +10,7 @@ works locally without any push target.
 
 from __future__ import annotations
 
+import time
 from typing import Any
 
 import requests
@@ -278,9 +279,117 @@ def _value_legend_embed() -> dict:
     }
 
 
-def send_discord(webhook_url: str, embed: dict) -> bool:
-    resp = requests.post(webhook_url, json=embed, timeout=30)
-    resp.raise_for_status()
+# Discord's hard limits for a single webhook message: at most 10 embeds, and a
+# combined 6000 characters across every embed's title/description/fields/footer.
+# We stay under a safety margin and split into multiple messages as needed, so a
+# big "keep everything" digest is never silently rejected with a 400.
+_DISCORD_MAX_EMBEDS = 10
+_DISCORD_MAX_CHARS = 5800
+
+
+def _embed_len(embed: dict) -> int:
+    n = len(embed.get("title", "")) + len(embed.get("description", ""))
+    for f in embed.get("fields", []):
+        n += len(str(f.get("name", ""))) + len(str(f.get("value", "")))
+    footer = embed.get("footer") or {}
+    return n + len(footer.get("text", ""))
+
+
+def _split_embed(embed: dict) -> list[dict]:
+    """Split one embed into pieces each within the char budget, by moving its
+    fields onto continuation embeds. Guards against a single busy league whose
+    own embed would exceed 6000 chars (individual fields are already ≤1024, so a
+    field never overflows a piece on its own)."""
+    title = embed.get("title", "")
+    color = embed.get("color")
+    desc = embed.get("description")
+    fields = embed.get("fields", [])
+    base = len(title) + (len(desc) if desc else 0)
+
+    groups: list[list[dict]] = []
+    cur: list[dict] = []
+    cur_len = base
+    for f in fields:
+        flen = len(str(f.get("name", ""))) + len(str(f.get("value", "")))
+        if cur and (len(cur) >= 25 or cur_len + flen > _DISCORD_MAX_CHARS):
+            groups.append(cur)
+            cur, cur_len = [], base
+        cur.append(f)
+        cur_len += flen
+    groups.append(cur)  # always at least one piece (may be empty-fielded)
+
+    pieces: list[dict] = []
+    for i, fs in enumerate(groups):
+        piece: dict = {"title": title if i == 0 else f"{title} (cont.)",
+                       "fields": fs}
+        if color is not None:
+            piece["color"] = color
+        if i == 0 and desc:
+            piece["description"] = desc
+        pieces.append(piece)
+    # Carry footer/timestamp onto the final piece so they survive the split.
+    if embed.get("footer"):
+        pieces[-1]["footer"] = embed["footer"]
+    if embed.get("timestamp"):
+        pieces[-1]["timestamp"] = embed["timestamp"]
+    return pieces
+
+
+def _chunk_embeds(embeds: list[dict]) -> list[list[dict]]:
+    """Group embeds into messages that respect Discord's 10-embed / 6000-char
+    per-message limits, first splitting any individually oversized embed."""
+    embeds = [piece for e in embeds for piece in _split_embed(e)]
+    chunks: list[list[dict]] = []
+    cur: list[dict] = []
+    cur_len = 0
+    for e in embeds:
+        elen = _embed_len(e)
+        if cur and (len(cur) >= _DISCORD_MAX_EMBEDS or cur_len + elen > _DISCORD_MAX_CHARS):
+            chunks.append(cur)
+            cur, cur_len = [], 0
+        cur.append(e)
+        cur_len += elen
+    if cur:
+        chunks.append(cur)
+    return chunks
+
+
+def _post_discord(webhook_url: str, body: dict, retries: int = 3) -> None:
+    """POST one message, retrying transient failures (429 rate limit, 5xx,
+    network errors) with backoff. Raises on a final/permanent failure."""
+    for attempt in range(retries):
+        try:
+            resp = requests.post(webhook_url, json=body, timeout=30)
+        except requests.RequestException:
+            if attempt == retries - 1:
+                raise
+            time.sleep(2 ** attempt)
+            continue
+        if resp.status_code == 429:  # rate limited — honor Discord's retry hint
+            wait = 1.0
+            try:
+                wait = float(resp.json().get("retry_after", 1.0))
+            except (ValueError, KeyError, AttributeError):
+                pass
+            time.sleep(min(wait, 5.0))
+            continue
+        if 500 <= resp.status_code < 600 and attempt < retries - 1:
+            time.sleep(2 ** attempt)
+            continue
+        resp.raise_for_status()
+        return
+
+
+def send_discord(webhook_url: str, payload: dict) -> bool:
+    """Send the payload as one or more messages, each within Discord's limits."""
+    embeds = payload.get("embeds", [])
+    username = payload.get("username")
+    groups = _chunk_embeds(embeds) or [[]]
+    for group in groups:
+        body: dict = {"embeds": group}
+        if username:
+            body["username"] = username
+        _post_discord(webhook_url, body)
     return True
 
 
