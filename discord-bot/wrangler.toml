@@ -1,0 +1,17 @@
+# Cloudflare Worker config for the Discord /ask bot.
+# Deploy with:  wrangler deploy   (from this discord-bot/ directory)
+
+name = "ff-ask-bot"
+main = "worker.js"
+compatibility_date = "2024-09-23"
+
+# Non-secret values. Fill these in (or set them in the Cloudflare dashboard).
+[vars]
+DISCORD_APP_ID = ""          # your Discord application (client) ID
+DISCORD_PUBLIC_KEY = ""      # your Discord app's Public Key
+OPENROUTER_MODEL = "openai/gpt-4o-mini"   # or a free model id
+GITHUB_REPO = "jamesonjdavis-maker/fantasy-football-monitor"
+
+# Secrets are NOT stored here. Set them once with:
+#   wrangler secret put OPENROUTER_API_KEY
+#   wrangler secret put GITHUB_TOKEN        # optional (grounds answers in your data)
