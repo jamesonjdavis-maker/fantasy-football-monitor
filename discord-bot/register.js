@@ -45,9 +45,15 @@ const url = GUILD_ID
     body: JSON.stringify(command),
   });
 
+  const text = await res.text();
   console.log(`HTTP ${res.status}`);
-  console.log(await res.text());
-  console.log(GUILD_ID
-    ? "Registered guild command (instant)."
-    : "Registered global command (may take up to ~1h).");
+  console.log(text);
+  if (res.ok) {
+    console.log(GUILD_ID
+      ? "✅ Registered guild command (instant)."
+      : "✅ Registered global command (may take up to ~1h).");
+  } else {
+    console.log("❌ Registration failed. 401 = bad bot token; 403 'Missing " +
+      "Access' = re-add the bot to the server with the applications.commands scope.");
+  }
 })();
