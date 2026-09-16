@@ -52,73 +52,98 @@ def projection_mae(df) -> dict:
 # --------------------------------------------------------------------------- #
 # 2. Monte Carlo calibration
 # --------------------------------------------------------------------------- #
-def _tier(avg: float) -> str:
-    if avg < 9:
-        return "low"
-    if avg < 14:
-        return "mid"
-    return "high"
-
-
-def _multiplier_percentiles(df) -> dict:
-    """Per (position, tier) 10th/90th percentiles of the weekly performance
-    multiplier (weekly pts ÷ season average). Because simulated outcomes are
-    projection × multiplier, the P10/P90 of the outcome equal projection × the
-    P10/P90 of the multiplier — so we can read floor/ceiling analytically."""
+def _tier_col(proj):
+    """Vectorized tier from projection: low<9, mid<14, else high."""
     import numpy as np
+    return np.where(proj < 9, "low", np.where(proj < 14, "mid", "high"))
 
-    m = df.copy()
-    m["season_avg_full"] = m.groupby(["player_id", "season"])["ppr"].transform("mean")
-    m = m[m["season_avg_full"] >= _MIN_SEASON_AVG]
-    m["mult"] = m["ppr"] / m["season_avg_full"]
-    m["tier"] = m["season_avg_full"].apply(_tier)
 
-    pct: dict = {}
+def _pct_table(train_df, q: float):
+    """Per (position, tier) q / (100-q) percentiles of the performance multiplier,
+    plus a pooled (position, 'all') fallback — as a tidy DataFrame for merging."""
+    import numpy as np
+    import pandas as pd
+
+    m = train_df.copy()
+    m["savg"] = m.groupby(["player_id", "season"])["ppr"].transform("mean")
+    m = m[m["savg"] >= _MIN_SEASON_AVG]
+    m["mult"] = m["ppr"] / m["savg"]
+    m["tier"] = _tier_col(m["savg"])
+
+    rows = []
     for pos in _POSITIONS:
-        pos_m = m[m["position"] == pos]["mult"].to_numpy()
-        if len(pos_m):
-            pct[(pos, "all")] = (float(np.percentile(pos_m, 10)),
-                                 float(np.percentile(pos_m, 90)))
+        pos_m = m[m["position"] == pos]
+        allv = pos_m["mult"].to_numpy()
+        if len(allv):
+            rows.append((pos, "all", np.percentile(allv, q), np.percentile(allv, 100 - q)))
         for tier in ("low", "mid", "high"):
-            arr = m[(m["position"] == pos) & (m["tier"] == tier)]["mult"].to_numpy()
+            arr = pos_m.loc[pos_m["tier"] == tier, "mult"].to_numpy()
             if len(arr) >= 200:
-                pct[(pos, tier)] = (float(np.percentile(arr, 10)),
-                                    float(np.percentile(arr, 90)))
-    return pct
+                rows.append((pos, tier, np.percentile(arr, q), np.percentile(arr, 100 - q)))
+    return pd.DataFrame(rows, columns=["position", "tier", "p_lo", "p_hi"])
 
 
-def calibration(df) -> dict:
-    """Share of actual outcomes that fall within the predicted P10–P90 band.
-    Well-calibrated ⇒ ~80% coverage (with ~10% below floor, ~10% above ceiling)."""
-    pct = _multiplier_percentiles(df)
-    d = df.dropna(subset=["proj"]).copy()
+def _coverage(eval_df, pct_table) -> dict:
+    """Vectorized coverage of proj × [p_lo, p_hi] over the eval rows."""
+    import pandas as pd
+
+    d = eval_df.dropna(subset=["proj"]).copy()
     d = d[d["proj"] >= _MIN_CONTRIB]
     if d.empty:
         return {"n": 0}
-
-    inside = below = above = 0
-    n = 0
-    for _, r in d.iterrows():
-        pos = r["position"]
-        p = pct.get((pos, _tier(r["proj"]))) or pct.get((pos, "all"))
-        if not p:
-            continue
-        floor, ceiling = r["proj"] * p[0], r["proj"] * p[1]
-        actual = r["ppr"]
-        n += 1
-        if actual < floor:
-            below += 1
-        elif actual > ceiling:
-            above += 1
-        else:
-            inside += 1
-    if not n:
+    d["tier"] = _tier_col(d["proj"])
+    # Prefer the tier-specific band; fall back to the position's pooled band.
+    tier_tbl = pct_table[pct_table["tier"] != "all"]
+    all_tbl = pct_table[pct_table["tier"] == "all"].drop(columns="tier")
+    d = d.merge(tier_tbl, on=["position", "tier"], how="left")
+    d = d.merge(all_tbl, on="position", how="left", suffixes=("", "_all"))
+    d["p_lo"] = d["p_lo"].fillna(d["p_lo_all"])
+    d["p_hi"] = d["p_hi"].fillna(d["p_hi_all"])
+    d = d.dropna(subset=["p_lo", "p_hi"])
+    if d.empty:
         return {"n": 0}
+
+    floor = d["proj"] * d["p_lo"]
+    ceiling = d["proj"] * d["p_hi"]
+    inside = ((d["ppr"] >= floor) & (d["ppr"] <= ceiling))
+    n = len(d)
     return {
-        "n": n,
-        "coverage_pct": round(inside / n * 100, 1),   # target ≈ 80
-        "below_floor_pct": round(below / n * 100, 1),  # target ≈ 10
-        "above_ceiling_pct": round(above / n * 100, 1),  # target ≈ 10
+        "n": int(n),
+        "coverage_pct": round(float(inside.mean()) * 100, 1),
+        "below_floor_pct": round(float((d["ppr"] < floor).mean()) * 100, 1),
+        "above_ceiling_pct": round(float((d["ppr"] > ceiling).mean()) * 100, 1),
+        "avg_band_pts": round(float((ceiling - floor).mean()), 1),
+    }
+
+
+def calibration(df, q: float = 10.0) -> dict:
+    """Coverage of the raw multiplier band (default P10–P90) — in-sample."""
+    return _coverage(df, _pct_table(df, q))
+
+
+def calibrate(df, target: float = 80.0) -> dict:
+    """Widen the band to hit the target coverage, fitting the tail percentile on
+    all-but-the-last season and reporting coverage on the held-out last season —
+    so 'calibrated to ~80%' is a genuine out-of-sample result."""
+    seasons = sorted(df["season"].unique())
+    if len(seasons) < 2:
+        return {"n": 0}
+    train = df[df["season"].isin(seasons[:-1])]
+    test = df[df["season"] == seasons[-1]]
+
+    raw = _coverage(test, _pct_table(train, 10.0))  # before: fixed P10–P90
+    # Lower q ⇒ wider band ⇒ higher coverage. Scan down until train hits target.
+    best_q = 10.0
+    for q in [x / 2 for x in range(20, 1, -1)]:  # 10.0, 9.5, … 1.0
+        if _coverage(train, _pct_table(train, q)).get("coverage_pct", 0) >= target:
+            best_q = q
+            break
+    calibrated = _coverage(test, _pct_table(train, best_q))
+    return {
+        "tail_percentile": best_q,
+        "raw": raw,
+        "calibrated": calibrated,
+        "test_season": int(seasons[-1]),
     }
 
 
@@ -176,7 +201,7 @@ def run(seasons: list[int] | None = None) -> dict:
     df = prepare(load_weekly(seasons))
 
     mae = projection_mae(df)
-    cal = calibration(df)
+    cal = calibrate(df)
     heat = heating_up_precision(df)
 
     print("\n=== RESULTS ===")
@@ -184,10 +209,12 @@ def run(seasons: list[int] | None = None) -> dict:
         print(f"[projection] MAE {mae['mae_model']} pts | season-avg {mae['mae_seasonavg']} "
               f"| last-week {mae['mae_lastweek']}  → {mae['vs_seasonavg_pct']}% better than "
               f"season-avg, {mae['vs_lastweek_pct']}% better than last-week ({mae['n']:,} wks)")
-    if cal.get("n"):
-        print(f"[calibration] {cal['coverage_pct']}% of outcomes inside the 80% "
-              f"floor–ceiling band (target ~80) | {cal['below_floor_pct']}% below floor, "
-              f"{cal['above_ceiling_pct']}% above ceiling ({cal['n']:,} predictions)")
+    if cal.get("calibrated", {}).get("n"):
+        raw, c = cal["raw"], cal["calibrated"]
+        print(f"[calibration] held-out {cal['test_season']}: raw P10–P90 band covered "
+              f"{raw['coverage_pct']}% of outcomes → widened to P{cal['tail_percentile']:g} "
+              f"covers {c['coverage_pct']}% (target 80) | avg band {c['avg_band_pts']} pts "
+              f"({c['n']:,} predictions)")
     if heat.get("n"):
         print(f"[heating-up] {heat['precision_pct']}% of flagged players sustained "
               f"above-baseline production next 2 wks vs {heat['base_rate_pct']}% base "
