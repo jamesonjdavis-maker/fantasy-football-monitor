@@ -15,3 +15,6 @@ venv/
 
 # OS
 .DS_Store
+
+# Cloudflare wrangler local cache
+discord-bot/.wrangler/
