@@ -7,7 +7,7 @@ for me.
 
 Every morning it checks all five leagues, notices what actually changed since
 yesterday, runs some analysis to spot start/sit and waiver opportunities, and
-sends me a single Discord message — but only when there's something worth
+sends me a single Discord message, but only when there's something worth
 knowing. It runs itself on a schedule in the cloud, and I can even ask it
 questions from my phone.
 
@@ -19,13 +19,13 @@ about data pipelines, machine learning, and honest model evaluation.
 - **Watches all my leagues at once.** It pulls my roster, bench, and the top
   free agents from each ESPN league every day.
 - **Notices real changes.** It saves a snapshot each day and compares it to
-  yesterday's, so it only tells me about things that actually moved — an injury
-  designation flipping to OUT, a player getting added or dropped, a starter
+  yesterday's, so it only tells me about things that actually moved, like an
+  injury designation flipping to OUT, a player getting added or dropped, a starter
   heading into a bye week, or a free agent that's suddenly getting picked up
   everywhere.
 - **Gives me start/sit and waiver advice.** It flags bench players projected to
-  outscore a starter (and it knows the rules — it won't tell me to bench my only
-  tight end for a wide receiver), ranks the best free agents by a value score,
+  outscore a starter (and it knows the rules, so it won't tell me to bench my
+  only tight end for a wide receiver), ranks the best free agents by a value score,
   and reads live Vegas point spreads to spot favorable game scripts.
 - **Only bothers me when it matters.** Quiet days get a short "all clear"
   digest; busy days get the details. Everything lands in Discord.
@@ -36,11 +36,11 @@ about data pipelines, machine learning, and honest model evaluation.
 
 Under the hood it keeps every password and cookie in GitHub's encrypted secrets,
 never in the code, and runs on a free GitHub Actions schedule that commits each
-day's snapshot back to the repo — so there's no database or server to pay for.
+day's snapshot back to the repo, so there's no database or server to pay for.
 
 ## The analytics
 
-The fun part. All of this runs on free, public data — the ESPN API for live
+The fun part. All of this runs on free, public data: the ESPN API for live
 projections and a public NFL history dataset (nflverse) for everything else.
 
 - **Monte Carlo floor and ceiling.** A single projected number hides risk: 12
@@ -51,7 +51,7 @@ projections and a public NFL history dataset (nflverse) for everything else.
 - **Value over replacement.** Twelve points at quarterback is not the same as
   twelve at tight end, because a startable quarterback is easy to find and a
   startable tight end isn't. So waiver value is measured against what a freely
-  available player at that position would give you — which makes players
+  available player at that position would give you, which makes players
   comparable across positions.
 - **"Heating up" detection.** Using years of history, I worked out how big a jump
   in recent production actually counts as notable for each position, then flag
@@ -63,18 +63,27 @@ projections and a public NFL history dataset (nflverse) for everything else.
 
 ## Does it actually work?
 
-I didn't want to just claim it was smart — I wanted to measure it. So I built a
+I didn't want to just claim it was smart, so I wanted to measure it. I built a
 backtest that replays the recommendation logic across five recent NFL seasons,
-using only
-the information that would have been available at the time (no peeking at the
-future). A few of the results:
+using only the information that would have been available at the time, with no
+peeking at the future. A few of the results:
 
-- **Start/sit calls were right 63% of the time** across ~99,000 graded decisions,
-  versus a 50% coin flip — adding about 3.7 points to the better choice.
-- **Flagged waiver pickups were 2.4× more likely** to become startable over the
-  next three weeks than a typical waiver-wire add.
-- **The floor/ceiling ranges are calibrated** — after tuning, real outcomes land
-  inside the predicted 80% range about 81% of the time on held-out seasons.
+- **Its start/sit calls were right 63% of the time.** Whenever the model said to
+  start one player over another, the player it picked really did outscore the
+  other one 63% of the time, across about 99,000 of these head-to-head calls. With
+  no information at all you would be right half the time (a coin flip), so 63% is a
+  real edge, and each correct call added roughly 3.7 points to the lineup. Those
+  points are what win close matchups.
+- **The free agents it flagged panned out 2.4 times as often.** When it points at
+  a player on the waiver wire as worth adding, 40% of those players went on to
+  become genuinely start-worthy over the next three weeks, versus only 17% for a
+  typical available player. In plain terms, its picks hit more than twice as often
+  as grabbing someone at random.
+- **Its floor and ceiling ranges can be trusted.** For each player it gives a
+  range it expects the real result to fall inside 80% of the time. Tested against
+  seasons it had never seen, the real result landed in that range about 81% of the
+  time, almost exactly what it promised. A range you can trust is what makes the
+  "safe" versus "boom-or-bust" labels actually mean something.
 
 You can run the evaluation yourself:
 
@@ -98,7 +107,7 @@ your live rosters and projections.
   ```bash
   python -m ffmonitor.ask "Start Odunze or Fannin in the BBL this week?"
   ```
-- **From Discord, on your phone** — type `/ask` in your server and the answer
+- **From Discord, on your phone,** type `/ask` in your server and the answer
   comes back in the channel. It runs on a free Cloudflare Worker; setup is in
   [discord-bot/SETUP.md](discord-bot/SETUP.md).
 
@@ -107,7 +116,7 @@ your live rosters and projections.
 ### 1. Find your ESPN league info
 
 For each league, grab the league ID and your team ID from the URL when you're
-viewing your team — it looks like
+viewing your team, which looks like
 fantasy.espn.com/football/team?leagueId=**1234567**&teamId=**3**.
 
 The tool takes them all in one setting, ESPN_LEAGUES, as a comma-separated list
@@ -125,14 +134,14 @@ ESPN. In Chrome, sign in to espn.com, open DevTools → Application → Cookies 
 espn.com, and copy the values of espn_s2 (a long string) and SWID (looks like
 {XXXX-XXXX-...}, braces included). One pair of cookies covers all your leagues,
 since they're tied to your account, not to a single league. Treat them like a
-password — they go in secrets, never in the code, and they expire every so often,
-so refresh them if ESPN stops working.
+password. They go in your secrets, never in the code, and they expire every so
+often, so refresh them if ESPN stops working.
 
 ### 2. Set up alerts
 
 Create a Discord webhook (Server Settings → Integrations → Webhooks → New Webhook
 → Copy Webhook URL) and that's your alert channel. If you'd rather get plain
-phone pushes, the tool also supports ntfy — pick an unguessable topic name,
+phone pushes, the tool also supports ntfy. Pick an unguessable topic name,
 subscribe to it in the ntfy app, and use that name. You can set either or both.
 
 ### 3. Try it locally (optional)
@@ -159,14 +168,14 @@ and variables → Actions. The ones you'll want:
 - OPENROUTER_API_KEY (only if you want the ask feature)
 
 The workflow runs every morning and an extra time on Sunday before games lock.
-You can also trigger it by hand from the Actions tab — tick the always_notify box
-to test your webhook end to end. It has permission to commit each day's snapshot
+You can also trigger it by hand from the Actions tab, ticking the always_notify
+box to test your webhook end to end. It has permission to commit each day's snapshot
 back to the repo, and that saved history is what the next day's run compares
 against, so there's no database to set up.
 
 ## Tuning
 
-The thresholds that decide what's worth flagging live in ffmonitor/config.py — how
+The thresholds that decide what's worth flagging live in ffmonitor/config.py: how
 many points a bench player has to beat a starter by, what counts as a weak
 starting spot, when a free agent is "hot," and how lopsided a game has to be to
 matter. The machine-learning features are on by default in the workflow and
@@ -184,8 +193,7 @@ every push.
 
 ## A note on honesty
 
-Because I built this partly to talk about in interviews, I was careful to keep the
-claims honest. The backtest only ever uses information that was available at
-decision time. The results are described as backtested, not as guarantees. And the
-live record grades itself with real outcomes, so over a season it speaks for
-itself.
+I was careful to keep the claims honest. The backtest only ever uses information
+that was available at decision time. The results are described as backtested, not
+as guarantees. And the live record grades itself with real outcomes, so over a
+season it speaks for itself.
