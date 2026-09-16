@@ -232,4 +232,49 @@ def summary_line(track: dict) -> str | None:
     if not ss or not ss.get("graded"):
         return None
     return (f"Start/sit record: {ss['correct']}-{ss['graded'] - ss['correct']} "
-            f"({ss['accuracy']}%, avg +{ss['avg_pts_gained']} pts)")
+            f"({ss['accuracy']}%, avg {ss['avg_pts_gained']:+} pts)")
+
+
+# --------------------------------------------------------------------------- #
+# CLI:  python -m ffmonitor.outcomes  [data_dir]
+# --------------------------------------------------------------------------- #
+def _print_report(data_dir: Path) -> None:
+    entries = _load(data_dir)
+    if not entries:
+        print(f"No recommendations logged yet ({_log_path(data_dir)} not found).")
+        print("It fills in after the first run that makes a start/sit call.")
+        return
+
+    track = summary(data_dir)
+    line = summary_line(track)
+    print(line or "No graded start/sit calls yet (waiting on completed weeks).")
+
+    graded = [e for e in entries if e.get("status") in ("correct", "incorrect")]
+    open_ss = [e for e in entries if e.get("status") == "open"]
+    logged = [e for e in entries if e.get("status") == "logged"]
+    print(f"\n{len(entries)} total logged · {len(graded)} graded · "
+          f"{len(open_ss)} awaiting results · {len(logged)} record-only\n")
+
+    recent = sorted(graded, key=lambda e: e.get("graded_at") or "", reverse=True)[:10]
+    if recent:
+        print("Most recent graded start/sit calls:")
+        for e in recent:
+            mark = "✅" if e["status"] == "correct" else "❌"
+            lg = e.get("league_name") or e.get("league")
+            print(f"  {mark} wk{e['week']} [{lg}] {e.get('message', '')[:70]}")
+            print(f"       {e['primary']['name']} {e['primary_actual']} vs "
+                  f"{e['compare']['name']} {e['compare_actual']}  "
+                  f"(Δ {e['points_delta']:+})")
+
+
+def main() -> None:
+    import sys
+
+    from .config import Config
+
+    data_dir = Path(sys.argv[1]) if len(sys.argv) > 1 else Config.from_env().data_dir
+    _print_report(data_dir)
+
+
+if __name__ == "__main__":
+    main()
