@@ -73,6 +73,7 @@ jobs:
           git config user.name "ff-monitor-bot"
           git config user.email "ff-monitor-bot@users.noreply.github.com"
           git add data/snapshot-*.json data/latest.json
+          git add data/recommendations.json 2>/dev/null || true
           if git diff --staged --quiet; then
             echo "No snapshot changes to commit."
           else

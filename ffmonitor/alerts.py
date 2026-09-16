@@ -124,7 +124,16 @@ def _footer(snapshot: dict) -> str:
             parts.append(f"{label}: ⚠️ error")
         elif snap.get("enabled"):
             parts.append(f"{label}: {snap.get('team_name', 'team')}")
-    return " • ".join(parts) or "Fantasy Football Monitor"
+    footer = " • ".join(parts) or "Fantasy Football Monitor"
+    # Append the running season start/sit record when we have one.
+    track = snapshot.get("track_record")
+    if track:
+        from .outcomes import summary_line
+
+        line = summary_line(track)
+        if line:
+            footer += f"\n{line}"
+    return footer
 
 
 def _league_summary_lines(snapshot: dict) -> list[str]:

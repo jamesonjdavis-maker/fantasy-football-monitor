@@ -70,6 +70,22 @@ def run(config: Config, min_severity: str = "low") -> int:
         spreads=spreads,
     )
 
+    # Live outcome logging: record today's calls, grade past ones now that their
+    # week is final, and attach the running season record. Never breaks the run.
+    try:
+        from . import outcomes
+
+        added = outcomes.record(config.data_dir, current, flags)
+        done = outcomes.grade(config.data_dir, current)
+        track = outcomes.summary(config.data_dir)
+        if track:
+            current["track_record"] = track
+        line = outcomes.summary_line(track)
+        print(f"[outcomes] logged {added} new, graded {done}."
+              + (f" {line}" if line else ""))
+    except Exception as exc:  # noqa: BLE001 - logging must never break the monitor
+        print(f"[outcomes] skipped ({exc})")
+
     path = storage.save(config.data_dir, current)
     storage.prune(config.data_dir)
     print(f"[snapshot] saved {path} ({len(events)} events, {len(flags)} flags)")
