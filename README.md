@@ -1,222 +1,191 @@
 # Fantasy Football Monitor
 
-Daily watchdog for your **ESPN** and **Sleeper** fantasy leagues. It pulls your
-roster, bench, and free agents from both platforms, saves a JSON snapshot,
-diffs it against yesterday to catch *real* changes, flags start/sit and waiver
-opportunities, and pings your phone via **ntfy** (or Discord) — but only when
-something's actually worth your attention.
+I play in five ESPN fantasy football leagues, and I got tired of logging into
+each one every morning to check for injuries, waiver-wire movement, and whether
+I had someone on my bench who should be starting. So I built a tool that does it
+for me.
+
+Every morning it checks all five leagues, notices what actually changed since
+yesterday, runs some analysis to spot start/sit and waiver opportunities, and
+sends me a single Discord message — but only when there's something worth
+knowing. It runs itself on a schedule in the cloud, and I can even ask it
+questions from my phone.
+
+This started as a way to save myself ten minutes a day. It turned into a project
+about data pipelines, machine learning, and honest model evaluation.
 
 ## What it does
 
-- **Pulls** your roster, bench, and top free agents from ESPN (`espn-api`) and
-  Sleeper (public API).
-- **Snapshots** to `data/snapshot-YYYY-MM-DD.json` every run and **diffs**
-  against the previous day to detect:
-  - injury-status changes (e.g. `QUESTIONABLE → OUT`, extra-loud for starters)
-  - roster adds/drops (waivers, trades)
-  - a starter now on **bye** this week
-  - free agents newly **trending** on the waiver wire
-- **Analyzes** the current lineup for:
-  - **bench players projected to outscore a starter** (start/sit nudges)
-  - **ranked waiver targets** — a value score per available free agent blending
-    projection, position scarcity (your weak spots), Monte Carlo ceiling, and
-    recent hot form
-  - **game-script flags** — from live Vegas point spreads (free ESPN odds API):
-    RBs on heavy favorites (positive script) or heavy underdogs (carries thin),
-    and underdog pass-catchers with garbage-time upside
-- **Alerts** via a phone push (ntfy) or Discord embed — and stays silent on
-  quiet days.
-- **Runs on a schedule** via GitHub Actions, committing each snapshot back to
-  the repo so day-over-day diffing works with zero external storage.
-- **Keeps every credential in GitHub Secrets** — nothing sensitive is in code.
+- **Watches all my leagues at once.** It pulls my roster, bench, and the top
+  free agents from each ESPN league every day.
+- **Notices real changes.** It saves a snapshot each day and compares it to
+  yesterday's, so it only tells me about things that actually moved — an injury
+  designation flipping to OUT, a player getting added or dropped, a starter
+  heading into a bye week, or a free agent that's suddenly getting picked up
+  everywhere.
+- **Gives me start/sit and waiver advice.** It flags bench players projected to
+  outscore a starter (and it knows the rules — it won't tell me to bench my only
+  tight end for a wide receiver), ranks the best free agents by a value score,
+  and reads live Vegas point spreads to spot favorable game scripts.
+- **Only bothers me when it matters.** Quiet days get a short "all clear"
+  digest; busy days get the details. Everything lands in Discord.
+- **Keeps its own report card.** It logs every start/sit call it makes and grades
+  it once the games are final, so I have a running record of how often it's right.
+- **Answers questions.** I can ask it "who should I start in the BBL this week?"
+  right from Discord and it replies using my actual rosters and projections.
 
-## Project layout
+Under the hood it keeps every password and cookie in GitHub's encrypted secrets,
+never in the code, and runs on a free GitHub Actions schedule that commits each
+day's snapshot back to the repo — so there's no database or server to pay for.
 
+## The analytics
+
+The fun part. All of this runs on free, public data — the ESPN API for live
+projections and a public NFL history dataset (nflverse) for everything else.
+
+- **Monte Carlo floor and ceiling.** A single projected number hides risk: 12
+  points could be a safe 10–14 or a boom-or-bust 3–28. So instead of trusting
+  one number, I learned each position's week-to-week volatility from years of
+  history and simulate thousands of possible outcomes for every player, then read
+  off a floor, a median, and a ceiling.
+- **Value over replacement.** Twelve points at quarterback is not the same as
+  twelve at tight end, because a startable quarterback is easy to find and a
+  startable tight end isn't. So waiver value is measured against what a freely
+  available player at that position would give you — which makes players
+  comparable across positions.
+- **"Heating up" detection.** Using years of history, I worked out how big a jump
+  in recent production actually counts as notable for each position, then flag
+  players whose recent form clears that bar.
+- **Game script from betting lines.** Heavy favorites tend to run the ball late
+  (good for their running backs); heavy underdogs throw to catch up (their
+  pass-catchers get garbage-time volume). It pulls live point spreads and flags
+  the players affected.
+
+## Does it actually work?
+
+I didn't want to just claim it was smart — I wanted to measure it. So I built a
+backtest that replays the recommendation logic across five recent NFL seasons,
+using only
+the information that would have been available at the time (no peeking at the
+future). A few of the results:
+
+- **Start/sit calls were right 63% of the time** across ~99,000 graded decisions,
+  versus a 50% coin flip — adding about 3.7 points to the better choice.
+- **Flagged waiver pickups were 2.4× more likely** to become startable over the
+  next three weeks than a typical waiver-wire add.
+- **The floor/ceiling ranges are calibrated** — after tuning, real outcomes land
+  inside the predicted 80% range about 81% of the time on held-out seasons.
+
+You can run the evaluation yourself:
+
+```bash
+python -m ffmonitor.eval.backtest        # start/sit, waiver, and lineup backtests
+python -m ffmonitor.eval.model_quality   # projection error and calibration
 ```
-fantasy-football-monitor/
-├── ffmonitor/
-│   ├── config.py            # loads settings from env / Secrets
-│   ├── models.py            # normalized cross-platform player shape
-│   ├── platforms/
-│   │   ├── espn.py          # espn-api wrapper (weekly box scores)
-│   │   └── sleeper.py       # Sleeper public API client
-│   ├── snapshot.py          # assemble today's snapshot
-│   ├── storage.py           # save / load / prune snapshots
-│   ├── diff.py              # day-over-day change events
-│   ├── analyze.py           # bench>starter, weak-position pickups
-│   ├── alerts.py            # ntfy / Discord formatting + send
-│   └── main.py              # entry point: snapshot → diff → analyze → alert
-├── .github/workflows/monitor.yml
-├── data/                    # snapshots live here (committed by CI)
-├── requirements.txt
-└── .env.example
+
+And you can check the live, in-season record any time:
+
+```bash
+python -m ffmonitor.outcomes
 ```
+
+## Ask it questions
+
+There are two ways to ask, both powered by an OpenRouter model and grounded in
+your live rosters and projections.
+
+- **From your terminal:**
+  ```bash
+  python -m ffmonitor.ask "Start Odunze or Fannin in the BBL this week?"
+  ```
+- **From Discord, on your phone** — type `/ask` in your server and the answer
+  comes back in the channel. It runs on a free Cloudflare Worker; setup is in
+  [discord-bot/SETUP.md](discord-bot/SETUP.md).
 
 ## Setup
 
-### 1. Get your league identifiers
+### 1. Find your ESPN league info
 
-**Sleeper** (no login needed — the API is public):
-- **League ID**: open your league on sleeper.app; it's in the URL
-  `.../leagues/{LEAGUE_ID}/...`.
-- **You**: set `SLEEPER_USERNAME` to your Sleeper handle (easiest), or
-  `SLEEPER_USER_ID`. You can look up your ID at
-  `https://api.sleeper.app/v1/user/YOUR_USERNAME` → `user_id`.
+For each league, grab the league ID and your team ID from the URL when you're
+viewing your team — it looks like
+fantasy.espn.com/football/team?leagueId=**1234567**&teamId=**3**.
 
-**ESPN**:
-- **League ID**: from the URL `.../leagues/{LEAGUE_ID}`.
-- **Team ID**: view your team; the URL includes `teamId=N`. (Optional — if you
-  skip it the tool uses the first team, which is only right if you're team 1.)
-- **Private leagues only** — two cookies from a logged-in `espn.com` session:
-  1. In Chrome, sign in to ESPN, open **DevTools → Application → Cookies →
-     `https://www.espn.com`**.
-  2. Copy the values of **`espn_s2`** (long string) and **`SWID`** (looks like
-     `{XXXXXXXX-....}`, braces included).
-  - These are personal session cookies. Treat them like a password and put them
-    in Secrets, never in code. They expire periodically — if ESPN stops working,
-    refresh them.
+The tool takes them all in one setting, ESPN_LEAGUES, as a comma-separated list
+of Label:leagueId:teamId, for example:
 
-> Tell me your league IDs and whether each is public or private and I'll tell
-> you exactly which secrets you need to set.
+```
+Masters:1436101602:3, Big Beautiful League:576110229:3
+```
 
-### 2. Set up alerts (ntfy — free phone push)
+The label is just what shows up in your alerts so you know which league each item
+came from.
 
-1. Install the **ntfy** app (iOS/Android) or use [ntfy.sh](https://ntfy.sh) in a
-   browser.
-2. Pick an **unguessable topic name** — e.g. `jameson-ff-a7x9k2`. There are no
-   accounts in ntfy; the topic name *is* the whole secret, and anyone who knows
-   it can read your alerts, so don't use something obvious like `fantasy`.
-3. In the app, **Subscribe** to that exact topic.
-4. Use the same name as the `NTFY_TOPIC` secret.
+**Private leagues** also need two cookies from a browser where you're logged into
+ESPN. In Chrome, sign in to espn.com, open DevTools → Application → Cookies →
+espn.com, and copy the values of espn_s2 (a long string) and SWID (looks like
+{XXXX-XXXX-...}, braces included). One pair of cookies covers all your leagues,
+since they're tied to your account, not to a single league. Treat them like a
+password — they go in secrets, never in the code, and they expire every so often,
+so refresh them if ESPN stops working.
 
-Prefer Discord instead (or as well)? Create a webhook via **Server Settings →
-Integrations → Webhooks → New Webhook → Copy Webhook URL** and set
-`DISCORD_WEBHOOK_URL`. Set either or both; the tool sends to whatever's
-configured.
+### 2. Set up alerts
 
-### 3. Try it locally (optional but recommended)
+Create a Discord webhook (Server Settings → Integrations → Webhooks → New Webhook
+→ Copy Webhook URL) and that's your alert channel. If you'd rather get plain
+phone pushes, the tool also supports ntfy — pick an unguessable topic name,
+subscribe to it in the ntfy app, and use that name. You can set either or both.
+
+### 3. Try it locally (optional)
 
 ```bash
-cd fantasy-football-monitor
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env      # then fill in your values
-ALWAYS_NOTIFY=1 python -m ffmonitor.main   # forces a test alert
+ALWAYS_NOTIFY=1 python -m ffmonitor.main
 ```
 
-`ALWAYS_NOTIFY=1` makes it alert even when nothing's flagged, so you can confirm
-your ntfy/Discord setup works. Drop it for normal runs. With no channel set, it
-prints what it *would* have sent to the terminal.
+ALWAYS_NOTIFY=1 forces an alert even when nothing's flagged, so you can confirm
+your setup works. With no alert channel configured, it just prints what it would
+have sent.
 
-### 4. Put it on GitHub with Actions
+### 4. Put it on GitHub
 
-1. Create a GitHub repo and push this project.
-2. Add your secrets: **Repo → Settings → Secrets and variables → Actions → New
-   repository secret**. Set the ones you use:
-   - `SLEEPER_LEAGUE_ID`, `SLEEPER_USERNAME` (or `SLEEPER_USER_ID`)
-   - `ESPN_LEAGUES` = `Label:leagueId:teamId, …` (one line, all your ESPN
-     leagues) — or a single `ESPN_LEAGUE_ID` + `ESPN_TEAM_ID`
-   - `ESPN_S2`, `ESPN_SWID` (private leagues; **one pair covers all your
-     leagues** — cookies are account-level, not per-league)
-   - `NTFY_TOPIC` (and/or `DISCORD_WEBHOOK_URL`)
-3. The workflow runs daily (13:00 UTC ≈ 9am ET, plus a Sunday-morning check).
-   Trigger it by hand any time from **Actions → Fantasy Football Monitor → Run
-   workflow** — tick *always_notify* there to test the webhook end-to-end.
+Push the project to a GitHub repo, then add your values under Settings → Secrets
+and variables → Actions. The ones you'll want:
 
-The workflow has `contents: write` permission so it can commit each day's
-snapshot back to `data/`. That committed history is what the next day's run
-diffs against — no database or cloud storage needed.
+- ESPN_LEAGUES (your comma-separated league list)
+- ESPN_S2 and ESPN_SWID (only for private leagues)
+- DISCORD_WEBHOOK_URL (and/or NTFY_TOPIC)
+- OPENROUTER_API_KEY (only if you want the ask feature)
+
+The workflow runs every morning and an extra time on Sunday before games lock.
+You can also trigger it by hand from the Actions tab — tick the always_notify box
+to test your webhook end to end. It has permission to commit each day's snapshot
+back to the repo, and that saved history is what the next day's run compares
+against, so there's no database to set up.
 
 ## Tuning
 
-Thresholds live in `ffmonitor/config.py` (`Thresholds`):
+The thresholds that decide what's worth flagging live in ffmonitor/config.py — how
+many points a bench player has to beat a starter by, what counts as a weak
+starting spot, when a free agent is "hot," and how lopsided a game has to be to
+matter. The machine-learning features are on by default in the workflow and
+degrade gracefully: if the history data is ever unavailable, the core monitor
+still runs.
 
-| Setting | Meaning | Default |
-|---|---|---|
-| `bench_over_starter_margin` | pts a bench player must beat a starter by | `2.0` |
-| `weak_starter_proj` | starter projection below this = weak slot | `8.0` |
-| `hot_add_min_count` | Sleeper 24h trending-add count to flag a FA | `3000` |
-| `espn_hot_owned_pct` | ESPN ownership % to flag a FA | `40.0` |
+## How it's built
 
-Alert noise is controlled by the minimum severity in `main.run()` (`"low"` by
-default). Raise it to `"medium"` to only hear about the bigger stuff.
+The code is organized as a small Python package, ffmonitor, with clear pieces:
+config and secrets, a normalized player format so every league looks the same to
+the rest of the code, the ESPN client, snapshotting and day-over-day diffing, the
+analysis and alerting, the machine-learning modules, the backtesting harness, and
+the question-answering assistant. There's a test suite that runs automatically on
+every push.
 
-## Machine learning (optional) — `ffmonitor/ml/`
+## A note on honesty
 
-A self-contained module for a **rising-usage / breakout signal**, built on
-historical NFL game logs (`nfl_data_py`) — a *separate* data source from the
-daily snapshots. The core monitor runs fine without any of this.
-
-The idea: opportunity (targets + carries) moves *before* fantasy points do, so a
-player whose share of their team's opportunity jumps above its recent baseline
-is a buy-low candidate — often a week before platform projections react.
-
-**Try the baseline signal:**
-
-```bash
-pip install -r requirements-ml.txt
-python -m ffmonitor.ml.baseline               # top risers, latest week
-python -m ffmonitor.ml.baseline --flagged-only --top 30
-python -m ffmonitor.ml.baseline --seasons 2024 2025 --positions RB WR TE
-```
-
-It prints each player's current opportunity share, their trailing-3-week
-baseline, the jump (Δ), and a 0–1 score. `★` marks players the rule flags
-(Δ ≥ 8 pts of share, off a ≥10% share). This is deliberately a **rules-based
-baseline first** — the number your future classifier has to beat.
-
-- `ml/data.py` — pulls weekly stats and builds per-player-week usage features.
-  The trailing average is **leakage-safe**: it uses only prior weeks, and never
-  bleeds across seasons.
-- `ml/baseline.py` — the rule, the 0–1 score, and `normalize_name()` (so
-  nfl_data_py names line up with your ESPN/Sleeper roster — handles Jr./accents/
-  initials).
-- `ml/history.py` — pulls many **completed** seasons (default 8, set
-  `HISTORY_SEASONS`) and derives a per-position **"notably rising" threshold**:
-  how far a player's recent 3-week PPG must exceed their own season average to
-  count, taken as the 75th percentile of historical rises.
-- `ml/signal.py` — safe bridge; returns `None`/`{}` if the data pull or deps are
-  unavailable, so the core run never breaks.
-
-**The "heating up" signal (wired into alerts, `ENABLE_ML=1`):** history and
-this-season deliberately share one unit — **fantasy points**:
-
-- **History (nfl_data_py, completed seasons)** sets the bar per position.
-- **This season (ESPN, live)** supplies each player's recent weekly points and
-  season average — a *different, working* source, so the nflverse
-  current-season gap doesn't block it.
-
-`analyze.py` then flags **bench players and free agents whose recent form beats
-their season average by more than the historical bar**, tagged
-`🔥 Heating up` in your alert. Needs a few weeks of the current season played
-before it fires (a player needs a recent stretch to outrun their average).
-Turn it off by unsetting `ENABLE_ML`; the monitor runs fine without it.
-
-**Monte Carlo floor/ceiling (`ml/montecarlo.py`, `ENABLE_ML=1`):** turns each
-projection into a range instead of one number.
-
-- From history, it learns each position's *performance multiplier* distribution
-  (weekly points ÷ season average), **tiered by scoring level** so low-projected
-  players are correctly boomier than studs.
-- For a player projected `mu`, it simulates 5,000 outcomes = `mu ×` sampled
-  multipliers and reads off **floor (P10) / median (P50) / ceiling (P90)** and a
-  `safe floor` / `balanced` / `boom/bust` label. These attach to every roster
-  player (and land in the snapshot JSON).
-- Surfaced in alerts two ways: start/sit suggestions append both players'
-  ranges, and a `🎲 Floor/ceiling` flag calls out a bench **upside dart** (higher
-  ceiling despite an equal/lower median) or **safer floor** option.
-
-- **Next step (not built yet):** a trained classifier (`train.py`/`predict.py`)
-  can replace the percentile rules — but only once it beats these baselines.
-
-## Notes & limits
-
-- **Sleeper projections** come from an unofficial endpoint
-  (`api.sleeper.com/projections/...`). If it's unavailable, projection-based
-  flags are simply skipped that run — the tool degrades gracefully.
-- **ESPN byes** are inferred from a starter projecting 0 points while otherwise
-  active, since `espn-api` doesn't expose a bye field directly.
-- The Sleeper player index (~5MB) is cached in `data/sleeper_players.json` for a
-  day (gitignored) to avoid re-downloading each run.
-- Exit code is `0` on normal runs (including "nothing to report") so a quiet day
-  doesn't show as a failed Action; it's non-zero only if every league errors.
+Because I built this partly to talk about in interviews, I was careful to keep the
+claims honest. The backtest only ever uses information that was available at
+decision time. The results are described as backtested, not as guarantees. And the
+live record grades itself with real outcomes, so over a season it speaks for
+itself.
