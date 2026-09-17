@@ -18,18 +18,23 @@ if (!APP_ID || !BOT_TOKEN) {
   process.exit(1);
 }
 
-const command = {
-  name: "ask",
-  description: "Ask about your fantasy football leagues (start/sit, waivers, matchups)",
-  options: [
-    {
-      name: "question",
-      description: "What do you want to know?",
-      type: 3, // STRING
-      required: true,
-    },
-  ],
-};
+// The full set of slash commands. PUT overwrites the scope with exactly these.
+const commands = [
+  {
+    name: "ask",
+    description: "Ask about your fantasy football leagues (start/sit, waivers, matchups)",
+    options: [
+      { name: "question", description: "What do you want to know?", type: 3, required: true },
+    ],
+  },
+  {
+    name: "ranges",
+    description: "This week's floor/median/ceiling ranges for a team",
+    options: [
+      { name: "league", description: "League name (optional; omit for all)", type: 3, required: false },
+    ],
+  },
+];
 
 const url = GUILD_ID
   ? `https://discord.com/api/v10/applications/${APP_ID}/guilds/${GUILD_ID}/commands`
@@ -37,12 +42,12 @@ const url = GUILD_ID
 
 (async () => {
   const res = await fetch(url, {
-    method: "POST",
+    method: "PUT", // bulk overwrite: registers exactly the commands above
     headers: {
       Authorization: `Bot ${BOT_TOKEN}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(command),
+    body: JSON.stringify(commands),
   });
 
   const text = await res.text();
@@ -50,8 +55,8 @@ const url = GUILD_ID
   console.log(text);
   if (res.ok) {
     console.log(GUILD_ID
-      ? "✅ Registered guild command (instant)."
-      : "✅ Registered global command (may take up to ~1h).");
+      ? "✅ Registered /ask and /ranges (guild, instant)."
+      : "✅ Registered /ask and /ranges (global, may take up to ~1h).");
   } else {
     console.log("❌ Registration failed. 401 = bad bot token; 403 'Missing " +
       "Access' = re-add the bot to the server with the applications.commands scope.");

@@ -47,12 +47,21 @@ export default {
 
     // APPLICATION_COMMAND
     if (interaction.type === 2) {
-      const opt = (interaction.data.options || []).find((o) => o.name === "question");
-      const question = (opt && opt.value ? String(opt.value) : "").trim();
+      const name = interaction.data.name;
+      const opts = interaction.data.options || [];
+
+      // /ranges [league] — deterministic floor/median/ceiling for a team.
+      if (name === "ranges") {
+        const league = (opts.find((o) => o.name === "league")?.value || "").toString();
+        ctx.waitUntil(rangesLater(interaction, league, env));
+        return json({ type: 5 });
+      }
+
+      // /ask question:... — LLM answer grounded in your data.
+      const question = (opts.find((o) => o.name === "question")?.value || "").toString().trim();
       if (!question) {
         return json({ type: 4, data: { content: "Ask me something with `/ask question:...`" } });
       }
-      // Defer, then finish the work in the background.
       ctx.waitUntil(answerLater(interaction, question, env));
       return json({ type: 5 }); // DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE
     }
@@ -69,12 +78,27 @@ async function answerLater(interaction, question, env) {
   } catch (err) {
     text = `Sorry — I couldn't answer that (${String(err).slice(0, 200)}).`;
   }
-  // Edit the deferred reply with the final answer (Discord content cap ~2000).
+  await editReply(interaction, env, text);
+}
+
+async function rangesLater(interaction, league, env) {
+  let text;
+  try {
+    const snap = await fetchSnapshot(env);
+    text = snap ? summarizeRanges(snap, league) : "No league data available.";
+  } catch (err) {
+    text = `Sorry — couldn't build ranges (${String(err).slice(0, 200)}).`;
+  }
+  await editReply(interaction, env, text);
+}
+
+// Edit the deferred reply with the final content (Discord content cap ~2000).
+async function editReply(interaction, env, text) {
   const url = `https://discord.com/api/v10/webhooks/${env.DISCORD_APP_ID}/${interaction.token}/messages/@original`;
   await fetch(url, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ content: text.slice(0, 1900) || "(no answer)" }),
+    body: JSON.stringify({ content: (text || "").slice(0, 1900) || "(nothing to show)" }),
   });
 }
 
@@ -110,8 +134,8 @@ async function askOpenRouter(question, context, env) {
 }
 
 // --- League context (optional, needs GITHUB_TOKEN + GITHUB_REPO) --------------
-async function buildContext(env) {
-  if (!env.GITHUB_TOKEN || !env.GITHUB_REPO) return "";
+async function fetchSnapshot(env) {
+  if (!env.GITHUB_TOKEN || !env.GITHUB_REPO) return null;
   const resp = await fetch(
     `https://api.github.com/repos/${env.GITHUB_REPO}/contents/data/latest.json`,
     {
@@ -122,9 +146,48 @@ async function buildContext(env) {
       },
     }
   );
-  if (!resp.ok) return "";
-  const snap = await resp.json();
-  return summarize(snap);
+  if (!resp.ok) return null;
+  return await resp.json();
+}
+
+async function buildContext(env) {
+  const snap = await fetchSnapshot(env);
+  return snap ? summarize(snap) : "";
+}
+
+// --- /ranges: floor / median / ceiling for each player, no LLM ----------------
+function fmtRange(p) {
+  const f = p.proj_floor, m = p.proj_median, c = p.proj_ceiling;
+  if (f == null || c == null) return `• ${p.name} (${p.position}): no projection`;
+  const mid = m != null ? `, mid ${m}` : "";
+  return `• ${p.name} (${p.position}): floor ${f}${mid}, ceiling ${c}`;
+}
+
+function summarizeRanges(snap, leagueFilter) {
+  const wanted = (leagueFilter || "").toLowerCase().trim();
+  const blocks = [];
+  for (const [key, s] of Object.entries(snap.platforms || {})) {
+    if (!s || !s.enabled) continue;
+    const name = s.league_name || s.label || key;
+    if (wanted && !name.toLowerCase().includes(wanted)) continue;
+    const roster = s.roster || [];
+    const starters = roster.filter((p) => p.slot === "starter");
+    const bench = roster.filter((p) => p.slot === "bench");
+    let block = `🎲 **${name}** — Week ${s.week ?? "?"} ranges (floor → ceiling)`;
+    if (starters.length) block += "\n__Starters__\n" + starters.map(fmtRange).join("\n");
+    if (bench.length) block += "\n__Bench__\n" + bench.map(fmtRange).join("\n");
+    blocks.push(block);
+  }
+  if (!blocks.length) {
+    return wanted
+      ? `No league matching "${leagueFilter}". Try /ranges with no league to see them all.`
+      : "No league data available yet.";
+  }
+  let out = blocks.join("\n\n");
+  if (out.length > 1900) {
+    out = out.slice(0, 1850) + "\n…(truncated — use `/ranges league:<name>` for one team)";
+  }
+  return out;
 }
 
 function fmtPlayer(p) {
