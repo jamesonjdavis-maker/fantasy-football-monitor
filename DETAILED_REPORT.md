@@ -214,6 +214,43 @@ seasons, about 26,000 player-weeks:
 You can run both yourself: `python -m ffmonitor.eval.backtest` and
 `python -m ffmonitor.eval.model_quality`.
 
+### A fair question: how can you backtest a model built from history?
+
+If a model learns from historical data, testing it on historical data sounds
+circular. The resolution is the foundational rule of machine-learning evaluation:
+split history into a training slice and a testing slice, and never let the test
+slice influence the model.
+
+For the calibration specifically, the tool learns each position's volatility from
+all seasons except the most recent, then measures whether its ranges hold up on the
+most recent season, which it never saw. Right now that means training on 2020
+through 2023 and testing on 2024. Both are history, but they are separate,
+non-overlapping slices, so it is a genuine out-of-sample test.
+
+It is worth being precise about which parts this applies to. The start/sit and
+waiver backtests do not learn parameters from the data; they apply fixed,
+leakage-safe rules and grade each week against that week's own future, so they do
+not need a train/test split. The split matters specifically for the calibration,
+which fits a range-width factor and has to prove it generalizes.
+
+### Why it keeps working as new seasons arrive
+
+When next season's data (2025) is published, the split shifts automatically: the
+tool trains on 2020 through 2024 and tests on 2025. Moving 2024 into the training
+set is correct, not a problem. The only rule is that the season being tested stays
+out of training, and 2025 is now the untouched test. The model "knowing about" 2024
+tells it stable patterns, like how boom-or-bust each position tends to be, but it
+says nothing about who scores what in 2025, so it cannot leak. Using older seasons
+to forecast a newer one is exactly what you want.
+
+This retrain-on-the-past, test-on-the-newest-season approach is a standard technique
+called walk-forward (or expanding-window) validation. It holds up year over year
+because the patterns the model relies on, position volatility and replacement
+levels, are stable across seasons, and the live current-season signals come from a
+separate source (ESPN) anyway. The only thing that would undermine it is a dramatic
+change to the game's scoring or rules that makes old seasons unlike new ones, which
+has not been an issue.
+
 ## 8. Grading itself in real time (live outcomes)
 
 Backtests are historical. To have a real, current-season record, the tool logs

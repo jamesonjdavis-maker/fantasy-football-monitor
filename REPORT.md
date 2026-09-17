@@ -117,6 +117,27 @@ available at the time, with no peeking at the future.
   labels meaningful.
 - **Projections beat a naive baseline** by about 19% on average error.
 
+### How I test a model that was built from history
+
+A fair question: if the Monte Carlo model learns each position's volatility from
+history, how can I test it on history without it being circular? The answer is the
+foundational rule of machine-learning evaluation: split history into a training
+slice and a testing slice, and never let the test slice influence the model.
+
+For the calibration, the model learns volatility from every season except the most
+recent, then is tested on the most recent season, which it never saw. Right now
+that means training on 2020 through 2023 and testing on 2024. Both are historical,
+but they don't overlap, so it is a genuine out-of-sample test.
+
+When next season's data (2025) is published, the split shifts automatically: it
+trains on 2020 through 2024 and tests on 2025. Moving 2024 into training is correct,
+not a problem, because the only rule is that the season being tested stays out of
+training. Using older seasons to forecast a newer one is not cheating; using the
+past to predict the future is the whole point. This approach, always testing on the
+newest unseen season, is a standard technique called walk-forward validation, and it
+keeps working because the patterns the model relies on (position volatility,
+replacement levels) are stable from year to year.
+
 On top of the backtest, the tool now grades its own calls live during the season,
 so the accuracy record is real, not just historical.
 
