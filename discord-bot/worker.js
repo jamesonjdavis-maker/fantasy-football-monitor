@@ -123,26 +123,45 @@ async function tradeLater(interaction, give, get, env) {
   await editReply(interaction, env, text);
 }
 
-// Find a player by name (case-insensitive substring) anywhere in your leagues,
-// returning the player, their league, current owner, and that league's
-// replacement levels (for value-over-replacement).
+// Normalize a name for forgiving matching: lowercase, strip accents and
+// punctuation, drop Jr./Sr./II/III suffixes, collapse spaces.
+function normName(s) {
+  return (s || "")
+    .toLowerCase()
+    .normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .replace(/['’.]/g, "")            // drop apostrophes/periods: Ja'Marr -> jamarr, T.J. -> tj
+    .replace(/[^a-z0-9 ]/g, " ")       // other punctuation (hyphens) -> space
+    .replace(/\b(jr|sr|ii|iii|iv|v)\b/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+// Match if the query is contained in the name, or every query word appears in it
+// (so "st brown", "amon brown", or "jefferson" all find the right player).
+function nameMatches(name, query) {
+  const n = normName(name), q = normName(query);
+  if (!q) return false;
+  if (n.includes(q)) return true;
+  const words = new Set(n.split(" "));
+  return q.split(" ").every((w) => words.has(w));
+}
+
+// Find a player by name anywhere in your leagues (your roster, other teams'
+// rosters, or free agents), returning the player, league, owner, and that
+// league's replacement levels (for value-over-replacement).
 function findPlayer(snap, query) {
-  const q = query.toLowerCase().trim();
-  if (!q) return null;
+  if (!normName(query)) return null;
   for (const [key, s] of Object.entries(snap.platforms || {})) {
     if (!s || !s.enabled) continue;
     const league = s.league_name || s.label || key;
     const repl = s.replacement_levels || {};
-    for (const p of s.roster || []) {
-      if (p.name && p.name.toLowerCase().includes(q))
-        return { p, league, owner: s.team_name || "you", repl };
-    }
-    for (const [team, players] of Object.entries(s.league_rosters || {})) {
-      for (const p of players || []) {
-        if (p.name && p.name.toLowerCase().includes(q))
-          return { p, league, owner: team, repl };
-      }
-    }
+    for (const p of s.roster || [])
+      if (nameMatches(p.name, query)) return { p, league, owner: s.team_name || "you", repl };
+    for (const [team, players] of Object.entries(s.league_rosters || {}))
+      for (const p of players || [])
+        if (nameMatches(p.name, query)) return { p, league, owner: team, repl };
+    for (const p of s.free_agents || [])
+      if (nameMatches(p.name, query)) return { p, league, owner: "free agent", repl };
   }
   return null;
 }
