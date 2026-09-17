@@ -63,12 +63,27 @@ DISCORD_APP_ID=... DISCORD_BOT_TOKEN=... DISCORD_GUILD_ID=... node register.js
 A guild command appears instantly. (Omit `DISCORD_GUILD_ID` for a global command
 — works everywhere but can take up to ~1 hour to show up.)
 
-## Step 6 — Ask!
-In your server, type:
+## Step 6 — Use it!
+The bot has three commands. In your server, type `/` and pick one:
 ```
 /ask question: Start Odunze or Fannin in the BBL this week?
+/ranges                      (your whole team's floor/median/ceiling; add league: <name> for one)
+/trade give: Rome Odunze  get: Chris Olave
 ```
 Within a few seconds the bot replies in the channel.
+
+> `/trade` and `/ranges` read the other managers' rosters and the Monte Carlo
+> ranges, which are written into your snapshot by the monitor. If they look empty,
+> run the monitor once (Actions → Run workflow) so the latest snapshot includes them.
+
+## Changing the AI model
+`/ask` and `/trade` use an OpenRouter model (default `openai/gpt-4o-mini`). Swap it
+in one step from this folder:
+```
+./set-model.sh anthropic/claude-3.5-sonnet
+```
+Run it with no arguments to see suggested model IDs. It edits `wrangler.toml` and
+redeploys for you.
 
 ---
 
@@ -79,12 +94,17 @@ Within a few seconds the bot replies in the channel.
 - **OpenRouter 402 / no credits** → set `OPENROUTER_MODEL` in `wrangler.toml` to a
   free model like `meta-llama/llama-3.1-8b-instruct:free`, then `wrangler deploy`.
 - **Answers ignore your teams** → Step 4 not done, or the token lacks Contents:read.
-- **`/ask` doesn't appear** → re-run Step 5 with a `DISCORD_GUILD_ID`, and make sure
-  the bot was added to the server (Step 1.4).
+- **A command doesn't appear** → re-run Step 5 with a `DISCORD_GUILD_ID`, and make
+  sure the bot was added to the server (Step 1.4).
+- **`/trade` or `/ranges` says no data / can't find a player** → run the monitor
+  once (Actions → Run workflow) so the latest snapshot includes all rosters and
+  Monte Carlo ranges.
 
 ## How it works
-`worker.js` verifies Discord's signature (WebCrypto Ed25519, no dependencies),
-answers the validation PING, and for `/ask` returns a *deferred* reply, then
-fetches your snapshot, calls OpenRouter, and edits in the answer. Same context
-and prompt as the local `python -m ffmonitor.ask` command — just a different
+`worker.js` verifies Discord's signature (WebCrypto Ed25519, no dependencies) and
+answers the validation PING. Each command returns a *deferred* reply, then fetches
+your latest snapshot from the repo and finishes the work: `/ask` and `/trade` call
+OpenRouter, while `/ranges` and the numeric side of `/trade` are computed directly
+from the snapshot (no AI, so they can't drop a player or invent a number). Same
+data and prompt as the local `python -m ffmonitor.ask` command, just a different
 front door.

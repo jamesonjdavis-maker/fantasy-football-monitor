@@ -33,8 +33,10 @@ about data pipelines, machine learning, and honest model evaluation.
   digest; busy days get the details. Everything lands in Discord.
 - **Keeps its own report card.** It logs every start/sit call it makes and grades
   it once the games are final, so I have a running record of how often it's right.
-- **Answers questions.** I can ask it "who should I start in the BBL this week?"
-  right from Discord and it replies using my actual rosters and projections.
+- **Answers questions and sizes up trades.** From Discord on my phone I can ask
+  it "who should I start in the BBL this week?", pull up my whole team's
+  floor/ceiling ranges, or check a trade offer, and it answers using my actual
+  rosters and projections, including the other managers' rosters.
 
 Under the hood it keeps every password and cookie in GitHub's encrypted secrets,
 never in the code, and runs on a free GitHub Actions schedule that commits each
@@ -102,23 +104,31 @@ python -m ffmonitor.outcomes
 
 ## Ask it questions
 
-There are two ways to ask, both powered by an OpenRouter model and grounded in
-your live rosters and projections.
+I can ask from my terminal, or from **Discord on my phone**, and it answers using
+my live rosters and projections.
 
-- **From your terminal:**
-  ```bash
-  python -m ffmonitor.ask "Start Odunze or Fannin in the BBL this week?"
-  ```
-- **From Discord, on your phone,** type `/ask` in your server and the answer
-  comes back in the channel.
+```bash
+python -m ffmonitor.ask "Start Odunze or Fannin in the BBL this week?"
+```
 
-To make the Discord version, I created my own Discord bot: a Discord application
-with an `/ask` slash command that anyone in the server can use. When you run the
-command, Discord sends the question to a small serverless function I deployed on a
-free Cloudflare Worker. That function checks the request really came from Discord,
-pulls in my latest league data, asks the model, and posts the answer back into the
-channel. Because it lives in the cloud, it works from my phone without my computer
-being on. The full walkthrough for building your own is in
+To do it from Discord I built my own bot: a Discord application with a few slash
+commands. When I run one, Discord sends it to a small serverless function I
+deployed on a free Cloudflare Worker. That function checks the request really came
+from Discord, pulls in my latest league data, and answers back in the channel.
+Because it lives in the cloud, it works from my phone with my computer off. The
+commands:
+
+- **`/ask`**: a natural-language question, answered by an AI model with my league
+  data as context ("who's my best waiver add at running back?").
+- **`/ranges`**: my whole team's floor / median / ceiling for the week, straight
+  from the Monte Carlo model (no AI, so it never drops a player or invents a
+  number). Optionally narrowed to one league.
+- **`/trade give: … get: …`**: sizes up a trade by comparing each player's value
+  over replacement and their floor/ceiling ranges, across every team's roster in
+  the league, then gives a verdict plus a short AI take.
+
+The `/ask` and `/trade` model is easy to swap with `discord-bot/set-model.sh`. The
+full walkthrough for building the bot yourself is in
 [discord-bot/SETUP.md](discord-bot/SETUP.md).
 
 ## Setup
@@ -197,9 +207,12 @@ still runs.
 The code is organized as a small Python package, ffmonitor, with clear pieces:
 config and secrets, a normalized player format so every league looks the same to
 the rest of the code, the ESPN client, snapshotting and day-over-day diffing, the
-analysis and alerting, the machine-learning modules, the backtesting harness, and
-the question-answering assistant. There's a test suite that runs automatically on
-every push.
+analysis and alerting, the machine-learning modules (Monte Carlo, value over
+replacement, the "heating up" signal), the odds feed, the backtesting and
+model-quality harness (ffmonitor/eval), the live outcome logger that grades its
+own calls, and the question-answering assistant. The Discord bot lives in its own
+folder (discord-bot) as a Cloudflare Worker with the /ask, /ranges, and /trade
+commands. A test suite runs automatically on every push.
 
 ## A note on honesty
 
