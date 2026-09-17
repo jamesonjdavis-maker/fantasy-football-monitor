@@ -108,8 +108,16 @@ your live rosters and projections.
   python -m ffmonitor.ask "Start Odunze or Fannin in the BBL this week?"
   ```
 - **From Discord, on your phone,** type `/ask` in your server and the answer
-  comes back in the channel. It runs on a free Cloudflare Worker; setup is in
-  [discord-bot/SETUP.md](discord-bot/SETUP.md).
+  comes back in the channel.
+
+To make the Discord version, I created my own Discord bot: a Discord application
+with an `/ask` slash command that anyone in the server can use. When you run the
+command, Discord sends the question to a small serverless function I deployed on a
+free Cloudflare Worker. That function checks the request really came from Discord,
+pulls in my latest league data, asks the model, and posts the answer back into the
+channel. Because it lives in the cloud, it works from my phone without my computer
+being on. The full walkthrough for building your own is in
+[discord-bot/SETUP.md](discord-bot/SETUP.md).
 
 ## Setup
 
