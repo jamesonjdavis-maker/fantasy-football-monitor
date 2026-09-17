@@ -27,9 +27,13 @@ def _norm(abbr: str | None) -> str | None:
     return _ALIASES.get(a, a)
 
 
-def fetch_spreads(week: int | None = None, season: int | None = None) -> dict[str, float]:
-    """Return {team_abbr: spread}, negative = favored. Empty on any failure so
-    the monitor is never blocked by the odds feed."""
+def fetch_odds(week: int | None = None, season: int | None = None) -> dict[str, dict]:
+    """Return {team_abbr: {"spread", "total", "implied_total"}} for the slate.
+
+    spread is negative when favored; total is the game's over/under; implied_total
+    is how many points Vegas expects that team to score, derived as
+    (total - spread) / 2. Empty on any failure so the monitor is never blocked.
+    """
     params: dict[str, str] = {}
     if week:
         params["week"] = str(week)
@@ -40,7 +44,7 @@ def fetch_spreads(week: int | None = None, season: int | None = None) -> dict[st
     except (requests.RequestException, ValueError):
         return {}
 
-    spreads: dict[str, float] = {}
+    out: dict[str, dict] = {}
     for event in data.get("events", []):
         for comp in event.get("competitions", []):
             competitors = comp.get("competitors", [])
@@ -54,17 +58,38 @@ def fetch_spreads(week: int | None = None, season: int | None = None) -> dict[st
             home_abbr = _norm((home.get("team") or {}).get("abbreviation"))
             away_abbr = _norm((away.get("team") or {}).get("abbreviation"))
 
+            total = odds[0].get("overUnder")
+            try:
+                total = float(total) if total is not None else None
+            except (TypeError, ValueError):
+                total = None
+
             details = (odds[0].get("details") or "").strip()
             if details.upper() in ("EVEN", "PK", "PICK"):
-                spreads[home_abbr] = 0.0
-                spreads[away_abbr] = 0.0
-                continue
-            m = _DETAILS_RE.match(details)
-            if not m:
-                continue
-            fav = _norm(m.group(1))
-            line = float(m.group(2))  # negative, e.g. -7.5
-            other = away_abbr if fav == home_abbr else home_abbr
-            spreads[fav] = line
-            spreads[other] = -line
-    return spreads
+                home_spread = away_spread = 0.0
+            else:
+                m = _DETAILS_RE.match(details)
+                if not m:
+                    continue
+                fav = _norm(m.group(1))
+                line = float(m.group(2))  # negative, e.g. -7.5
+                home_spread = line if fav == home_abbr else -line
+                away_spread = -home_spread
+
+            for abbr, spread in ((home_abbr, home_spread), (away_abbr, away_spread)):
+                implied = round((total - spread) / 2, 1) if total is not None else None
+                out[abbr] = {"spread": spread, "total": total, "implied_total": implied}
+    return out
+
+
+def fetch_spreads(week: int | None = None, season: int | None = None) -> dict[str, float]:
+    """Return {team_abbr: spread}, negative = favored. Thin wrapper over
+    fetch_odds, kept for the game-script flags."""
+    return {t: v["spread"] for t, v in fetch_odds(week, season).items()}
+
+
+def fetch_implied_totals(week: int | None = None, season: int | None = None) -> dict[str, float]:
+    """Return {team_abbr: implied point total} — how much Vegas expects the team
+    to score this week."""
+    return {t: v["implied_total"] for t, v in fetch_odds(week, season).items()
+            if v.get("implied_total") is not None}

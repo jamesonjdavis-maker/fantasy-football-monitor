@@ -74,10 +74,33 @@ def _range_note(bench: dict, starter: dict) -> str:
     )
 
 
+# Start/sit confidence tiers. Backtesting shows accuracy climbs with the
+# projected margin, so we label each call so the big, reliable ones stand out.
+_CONF_LABEL = {"high": "🔒 High-confidence", "medium": "Medium-confidence", "lean": "Lean"}
+_CONF_SEVERITY = {"high": "high", "medium": "medium", "lean": "low"}
+# An implied-total edge (points) at which Vegas meaningfully reinforces a call.
+_VEGAS_EDGE = 3.0
+
+
+def _confidence(margin: float, thresholds: Thresholds) -> str:
+    if margin >= thresholds.startsit_high_confidence:
+        return "high"
+    if margin >= thresholds.startsit_medium_confidence:
+        return "medium"
+    return "lean"
+
+
+def _bump(conf: str) -> str:
+    return {"lean": "medium", "medium": "high", "high": "high"}[conf]
+
+
 def _bench_beats_starter(
-    platform: str, snap: dict, thresholds: Thresholds
+    platform: str, snap: dict, thresholds: Thresholds,
+    implied_totals: dict | None = None,
 ) -> list[dict]:
-    """Flag bench players projected to beat a same-position starter."""
+    """Flag bench players projected to beat a same-position starter, rated by
+    confidence (projected margin) and reinforced by the Vegas game environment
+    (each team's implied point total)."""
     flags: list[dict] = []
     roster = snap.get("roster", [])
     starters = _starters(roster)
@@ -103,16 +126,35 @@ def _bench_beats_starter(
                     if starter_hurt
                     else f"+{margin:.1f} proj pts"
                 )
+                conf = "high" if starter_hurt else _confidence(margin, thresholds)
+
+                # Fold in the Vegas game environment: if the bench player's team
+                # is expected to score notably more, it reinforces the call.
+                vegas_note = ""
+                if implied_totals:
+                    b_it = implied_totals.get(b.get("pro_team"))
+                    s_it = implied_totals.get(s.get("pro_team"))
+                    if b_it is not None and s_it is not None:
+                        edge = b_it - s_it
+                        if edge >= _VEGAS_EDGE:
+                            if not starter_hurt:
+                                conf = _bump(conf)
+                            vegas_note = (f" · Vegas backs it: {b['pro_team']} "
+                                          f"{b_it:.0f} vs {s['pro_team']} {s_it:.0f} implied")
+                        elif edge <= -_VEGAS_EDGE:
+                            vegas_note = (f" · but Vegas favors {s['pro_team']} "
+                                          f"({s_it:.0f} vs {b_it:.0f} implied)")
+
                 flags.append(
                     {
                         "platform": platform,
                         "kind": "bench_over_starter",
-                        "severity": "high" if starter_hurt else "medium",
+                        "severity": "high" if starter_hurt else _CONF_SEVERITY[conf],
+                        "confidence": conf,
                         "message": (
-                            f"Start {b['name']} ({pos}, {bproj:.1f}) over "
-                            f"{s['name']} ({s.get('position')}, "
-                            f"{sproj if sproj is not None else '?'}) — {reason}"
-                            + _range_note(b, s)
+                            f"{_CONF_LABEL[conf]}: Start {b['name']} ({pos}, {bproj:.1f}) "
+                            f"over {s['name']} ({s.get('position')}, {sproj:.1f}) — {reason}"
+                            + vegas_note + _range_note(b, s)
                         ),
                         "bench_player": b,
                         "starter": s,
@@ -398,12 +440,14 @@ def analyze(
     thresholds: Thresholds,
     production_thresholds: dict | None = None,
     spreads: dict[str, float] | None = None,
+    implied_totals: dict[str, float] | None = None,
 ) -> list[dict]:
     """Return all point-in-time flags across platforms, most severe first.
 
     `production_thresholds` (optional, from ml.history) enables the ML
     "heating up" flags; when omitted, only the rule-based start/sit and waiver
-    flags run.
+    flags run. `implied_totals` (optional, from odds) reinforces start/sit
+    confidence with each team's Vegas-implied point total.
     """
     from .diff import SEVERITY_ORDER
 
@@ -411,7 +455,7 @@ def analyze(
     for platform, snap in snapshot.get("platforms", {}).items():
         if not snap or snap.get("error") or not snap.get("enabled"):
             continue
-        flags.extend(_bench_beats_starter(platform, snap, thresholds))
+        flags.extend(_bench_beats_starter(platform, snap, thresholds, implied_totals))
         flags.extend(_waiver_targets(platform, snap, thresholds))
         flags.extend(_rising_production_flags(platform, snap, production_thresholds))
         flags.extend(_projection_range_flags(platform, snap))

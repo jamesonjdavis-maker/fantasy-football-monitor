@@ -45,13 +45,18 @@ def run(config: Config, min_severity: str = "low") -> int:
         None,
     )
     spreads: dict = {}
+    implied_totals: dict = {}
     try:
-        from .odds import fetch_spreads
+        from .odds import fetch_odds
 
-        spreads = fetch_spreads(week=week)
-        print(f"[odds] point spreads loaded for {len(spreads)} teams.")
+        odds = fetch_odds(week=week)
+        spreads = {t: v["spread"] for t, v in odds.items()}
+        implied_totals = {t: v["implied_total"] for t, v in odds.items()
+                          if v.get("implied_total") is not None}
+        print(f"[odds] loaded for {len(spreads)} teams "
+              f"({len(implied_totals)} with implied totals).")
     except Exception as exc:
-        print(f"[odds] spreads unavailable this run: {exc}")
+        print(f"[odds] unavailable this run: {exc}")
 
     # ML add-ons (safe no-ops if deps/data unavailable):
     #  - Monte Carlo floor/ceiling attached to each roster player
@@ -68,6 +73,7 @@ def run(config: Config, min_severity: str = "low") -> int:
         config.thresholds,
         production_thresholds=production_thresholds,
         spreads=spreads,
+        implied_totals=implied_totals,
     )
 
     # Live outcome logging: record today's calls, grade past ones now that their

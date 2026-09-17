@@ -37,3 +37,32 @@ def test_no_illegal_te_swap_but_legal_flex_swap():
     msgs = " ".join(f["message"] for f in flags)
     assert "over Fannin" not in msgs          # never bench the only TE for a WR
     assert "Odunze" in msgs and "Flex WR" in msgs  # WR->FLEX swap is fine
+
+
+def _pt(name, pos, slot, proj, team):
+    return {"name": name, "position": pos, "slot": slot, "lineup_slot": slot.upper(),
+            "proj_points": proj, "pro_team": team, "injury_status": "ACTIVE",
+            "on_bye": False}
+
+
+def test_confidence_tiers_scale_with_margin():
+    th = Thresholds()  # high >= 8, medium >= 5
+    def conf_for(gap):
+        snap = {"roster": [_pt("S", "WR", "starter", 10.0, "MIA"),
+                           _pt("B", "WR", "bench", 10.0 + gap, "MIA")]}
+        return _bench_beats_starter("x", snap, th)[0]["confidence"]
+    assert conf_for(9) == "high"
+    assert conf_for(6) == "medium"
+    assert conf_for(3) == "lean"
+
+
+def test_vegas_reinforcement_bumps_and_annotates():
+    th = Thresholds()
+    # +6 gap is normally "medium"; a strong Vegas edge for the bench team bumps it.
+    snap = {"roster": [_pt("S", "WR", "starter", 10.0, "MIA"),
+                       _pt("B", "WR", "bench", 16.0, "BUF")]}
+    plain = _bench_beats_starter("x", snap, th)[0]
+    assert plain["confidence"] == "medium"
+    boosted = _bench_beats_starter("x", snap, th, {"BUF": 27.0, "MIA": 17.0})[0]
+    assert boosted["confidence"] == "high"
+    assert "Vegas backs it" in boosted["message"]
