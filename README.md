@@ -25,10 +25,10 @@ about data pipelines, machine learning, and honest model evaluation.
   everywhere.
 - **Gives me start/sit and waiver advice.** It flags bench players projected to
   outscore a starter (and it knows the rules, so it won't tell me to bench my
-  only tight end for a wide receiver), labels how confident each call is, and
-  checks it against the Vegas game environment (how many points each team is
-  expected to score). It also ranks the best free agents by a value score and
-  reads live point spreads to spot favorable game scripts.
+  only tight end for a wide receiver), and on the close calls it breaks the tie
+  with the Vegas game environment, how many points each team is expected to
+  score. It also ranks the best free agents by a value score and reads live
+  point spreads to spot favorable game scripts.
 - **Only bothers me when it matters.** Quiet days get a short "all clear"
   digest; busy days get the details. Everything lands in Discord.
 - **Keeps its own report card.** It logs every start/sit call it makes and grades

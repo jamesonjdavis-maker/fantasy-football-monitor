@@ -74,33 +74,17 @@ def _range_note(bench: dict, starter: dict) -> str:
     )
 
 
-# Start/sit confidence tiers. Backtesting shows accuracy climbs with the
-# projected margin, so we label each call so the big, reliable ones stand out.
-_CONF_LABEL = {"high": "🔒 High-confidence", "medium": "Medium-confidence", "lean": "Lean"}
-_CONF_SEVERITY = {"high": "high", "medium": "medium", "lean": "low"}
-# An implied-total edge (points) at which Vegas meaningfully reinforces a call.
+# An implied-total edge (points) at which the Vegas game environment meaningfully
+# reinforces (or argues against) a start/sit call.
 _VEGAS_EDGE = 3.0
-
-
-def _confidence(margin: float, thresholds: Thresholds) -> str:
-    if margin >= thresholds.startsit_high_confidence:
-        return "high"
-    if margin >= thresholds.startsit_medium_confidence:
-        return "medium"
-    return "lean"
-
-
-def _bump(conf: str) -> str:
-    return {"lean": "medium", "medium": "high", "high": "high"}[conf]
 
 
 def _bench_beats_starter(
     platform: str, snap: dict, thresholds: Thresholds,
     implied_totals: dict | None = None,
 ) -> list[dict]:
-    """Flag bench players projected to beat a same-position starter, rated by
-    confidence (projected margin) and reinforced by the Vegas game environment
-    (each team's implied point total)."""
+    """Flag bench players projected to beat a same-position starter, with the
+    Vegas game environment (each team's implied point total) as a tie-breaker."""
     flags: list[dict] = []
     roster = snap.get("roster", [])
     starters = _starters(roster)
@@ -126,10 +110,9 @@ def _bench_beats_starter(
                     if starter_hurt
                     else f"+{margin:.1f} proj pts"
                 )
-                conf = "high" if starter_hurt else _confidence(margin, thresholds)
 
-                # Fold in the Vegas game environment: if the bench player's team
-                # is expected to score notably more, it reinforces the call.
+                # Vegas game environment: note it when the two teams are expected
+                # to score notably differently. Great for breaking a close call.
                 vegas_note = ""
                 if implied_totals:
                     b_it = implied_totals.get(b.get("pro_team"))
@@ -137,8 +120,6 @@ def _bench_beats_starter(
                     if b_it is not None and s_it is not None:
                         edge = b_it - s_it
                         if edge >= _VEGAS_EDGE:
-                            if not starter_hurt:
-                                conf = _bump(conf)
                             vegas_note = (f" · Vegas backs it: {b['pro_team']} "
                                           f"{b_it:.0f} vs {s['pro_team']} {s_it:.0f} implied")
                         elif edge <= -_VEGAS_EDGE:
@@ -149,11 +130,10 @@ def _bench_beats_starter(
                     {
                         "platform": platform,
                         "kind": "bench_over_starter",
-                        "severity": "high" if starter_hurt else _CONF_SEVERITY[conf],
-                        "confidence": conf,
+                        "severity": "high" if starter_hurt else "medium",
                         "message": (
-                            f"{_CONF_LABEL[conf]}: Start {b['name']} ({pos}, {bproj:.1f}) "
-                            f"over {s['name']} ({s.get('position')}, {sproj:.1f}) — {reason}"
+                            f"Start {b['name']} ({pos}, {bproj:.1f}) over "
+                            f"{s['name']} ({s.get('position')}, {sproj:.1f}) — {reason}"
                             + vegas_note + _range_note(b, s)
                         ),
                         "bench_player": b,

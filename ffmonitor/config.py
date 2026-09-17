@@ -126,10 +126,6 @@ class Thresholds:
     espn_hot_owned_pct: float = 40.0
     # Point-spread size (favored or underdog) that triggers a game-script flag.
     game_script_spread: float = 7.0
-    # Start/sit confidence tiers by projected point margin: a gap this big is a
-    # "high" / "medium" confidence call (backtested accuracy rises with the gap).
-    startsit_high_confidence: float = 8.0
-    startsit_medium_confidence: float = 5.0
 
 
 @dataclass

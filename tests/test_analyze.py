@@ -45,24 +45,19 @@ def _pt(name, pos, slot, proj, team):
             "on_bye": False}
 
 
-def test_confidence_tiers_scale_with_margin():
-    th = Thresholds()  # high >= 8, medium >= 5
-    def conf_for(gap):
-        snap = {"roster": [_pt("S", "WR", "starter", 10.0, "MIA"),
-                           _pt("B", "WR", "bench", 10.0 + gap, "MIA")]}
-        return _bench_beats_starter("x", snap, th)[0]["confidence"]
-    assert conf_for(9) == "high"
-    assert conf_for(6) == "medium"
-    assert conf_for(3) == "lean"
-
-
-def test_vegas_reinforcement_bumps_and_annotates():
+def test_vegas_note_added_when_environments_differ():
     th = Thresholds()
-    # +6 gap is normally "medium"; a strong Vegas edge for the bench team bumps it.
     snap = {"roster": [_pt("S", "WR", "starter", 10.0, "MIA"),
-                       _pt("B", "WR", "bench", 16.0, "BUF")]}
+                       _pt("B", "WR", "bench", 12.5, "BUF")]}  # close ~2.5 pt call
     plain = _bench_beats_starter("x", snap, th)[0]
-    assert plain["confidence"] == "medium"
-    boosted = _bench_beats_starter("x", snap, th, {"BUF": 27.0, "MIA": 17.0})[0]
-    assert boosted["confidence"] == "high"
-    assert "Vegas backs it" in boosted["message"]
+    assert "Vegas" not in plain["message"]  # no odds -> no note
+    with_odds = _bench_beats_starter("x", snap, th, {"BUF": 27.0, "MIA": 17.0})[0]
+    assert "Vegas backs it: BUF" in with_odds["message"]
+
+
+def test_vegas_note_warns_when_environment_disagrees():
+    th = Thresholds()
+    snap = {"roster": [_pt("S", "WR", "starter", 10.0, "BUF"),
+                       _pt("B", "WR", "bench", 12.5, "MIA")]}  # bench team scores less
+    f = _bench_beats_starter("x", snap, th, {"BUF": 27.0, "MIA": 17.0})[0]
+    assert "but Vegas favors BUF" in f["message"]
