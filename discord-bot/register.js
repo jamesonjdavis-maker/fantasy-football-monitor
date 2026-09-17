@@ -34,6 +34,14 @@ const commands = [
       { name: "league", description: "League name (optional; omit for all)", type: 3, required: false },
     ],
   },
+  {
+    name: "trade",
+    description: "Compare a trade: value of who you give vs who you get",
+    options: [
+      { name: "give", description: "Player you would give away", type: 3, required: true },
+      { name: "get", description: "Player you would receive", type: 3, required: true },
+    ],
+  },
 ];
 
 const url = GUILD_ID

@@ -117,8 +117,12 @@ def attach_ranges(snapshot: dict) -> None:
     for snap in snapshot.get("platforms", {}).values():
         if not isinstance(snap, dict) or not snap.get("enabled"):
             continue
-        # Roster players and free agents both get ranges (FAs feed waiver value).
-        for player in list(snap.get("roster", [])) + list(snap.get("free_agents", [])):
+        # Your roster and free agents feed start/sit and waiver value; every
+        # team's roster feeds trade evaluation.
+        players = list(snap.get("roster", [])) + list(snap.get("free_agents", []))
+        for team_players in (snap.get("league_rosters") or {}).values():
+            players.extend(team_players)
+        for player in players:
             mu = player.get("proj_points")
             if mu is None or mu <= 0:
                 mu = player.get("avg_points")

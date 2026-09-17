@@ -57,6 +57,14 @@ export default {
         return json({ type: 5 });
       }
 
+      // /trade give:... get:... — compare two players' value across the league.
+      if (name === "trade") {
+        const give = (opts.find((o) => o.name === "give")?.value || "").toString();
+        const get = (opts.find((o) => o.name === "get")?.value || "").toString();
+        ctx.waitUntil(tradeLater(interaction, give, get, env));
+        return json({ type: 5 });
+      }
+
       // /ask question:... — LLM answer grounded in your data.
       const question = (opts.find((o) => o.name === "question")?.value || "").toString().trim();
       if (!question) {
@@ -90,6 +98,101 @@ async function rangesLater(interaction, league, env) {
     text = `Sorry — couldn't build ranges (${String(err).slice(0, 200)}).`;
   }
   await editReply(interaction, env, text);
+}
+
+async function tradeLater(interaction, give, get, env) {
+  let text;
+  try {
+    const snap = await fetchSnapshot(env);
+    if (!snap) {
+      text = "No league data available yet.";
+    } else {
+      const g = findPlayer(snap, give);
+      const r = findPlayer(snap, get);
+      if (!g) text = `Couldn't find a player matching "${give}".`;
+      else if (!r) text = `Couldn't find a player matching "${get}".`;
+      else {
+        text = tradeVerdict(g, r);
+        const note = await tradeCommentary(g, r, env).catch(() => "");
+        if (note) text += `\n\n💬 ${note}`;
+      }
+    }
+  } catch (err) {
+    text = `Sorry — couldn't evaluate the trade (${String(err).slice(0, 200)}).`;
+  }
+  await editReply(interaction, env, text);
+}
+
+// Find a player by name (case-insensitive substring) anywhere in your leagues,
+// returning the player, their league, current owner, and that league's
+// replacement levels (for value-over-replacement).
+function findPlayer(snap, query) {
+  const q = query.toLowerCase().trim();
+  if (!q) return null;
+  for (const [key, s] of Object.entries(snap.platforms || {})) {
+    if (!s || !s.enabled) continue;
+    const league = s.league_name || s.label || key;
+    const repl = s.replacement_levels || {};
+    for (const p of s.roster || []) {
+      if (p.name && p.name.toLowerCase().includes(q))
+        return { p, league, owner: s.team_name || "you", repl };
+    }
+    for (const [team, players] of Object.entries(s.league_rosters || {})) {
+      for (const p of players || []) {
+        if (p.name && p.name.toLowerCase().includes(q))
+          return { p, league, owner: team, repl };
+      }
+    }
+  }
+  return null;
+}
+
+function valueOf(found) {
+  const p = found.p;
+  const med = p.proj_median != null ? p.proj_median : p.proj_points;
+  if (med == null) return null;
+  const rep = found.repl[p.position];
+  return rep != null ? +(med - rep).toFixed(1) : +Number(med).toFixed(1);
+}
+
+function rangeStr(p) {
+  if (p.proj_floor != null && p.proj_ceiling != null)
+    return `range ${p.proj_floor}–${p.proj_ceiling} (mid ${p.proj_median ?? "?"})`;
+  return p.proj_points != null ? `proj ~${p.proj_points}` : "no projection";
+}
+
+function valStr(v) {
+  return v == null ? "" : `, value ${v > 0 ? "+" : ""}${v}`;
+}
+
+function tradeVerdict(g, r) {
+  const gv = valueOf(g), rv = valueOf(r);
+  const lines = ["🔁 **Trade check**"];
+  const team = (p) => (p.pro_team ? ", " + p.pro_team : "");
+  lines.push(`**Give:** ${g.p.name} (${g.p.position}${team(g.p)}) — ${rangeStr(g.p)}${valStr(gv)}`);
+  lines.push(`**Get:** ${r.p.name} (${r.p.position}${team(r.p)}, ${r.owner}) — ${rangeStr(r.p)}${valStr(rv)}`);
+  if (g.league !== r.league)
+    lines.push(`⚠️ Different leagues (${g.league} vs ${r.league}) — a trade only works within one league.`);
+  if (gv != null && rv != null) {
+    const diff = +(rv - gv).toFixed(1);
+    if (Math.abs(diff) < 1) lines.push("**Verdict:** roughly even on value.");
+    else if (diff > 0) lines.push(`**Verdict:** favors you by about ${diff} points of value-over-replacement.`);
+    else lines.push(`**Verdict:** you'd give up about ${Math.abs(diff)} points of value-over-replacement.`);
+    lines.push("_Value = median projection minus a replacement-level player at that position. Positional need and the human side of the deal are still your call._");
+  }
+  return lines.join("\n");
+}
+
+async function tradeCommentary(g, r, env) {
+  if (!env.OPENROUTER_API_KEY) return "";
+  const facts =
+    `Give ${g.p.name} (${g.p.position}, value ${valueOf(g)}, ${rangeStr(g.p)}); ` +
+    `Get ${r.p.name} (${r.p.position}, value ${valueOf(r)}, ${rangeStr(r.p)}).`;
+  const answer = await askOpenRouter(
+    "In one or two sentences, give a plain take on this fantasy trade for me.",
+    facts, env
+  );
+  return answer;
 }
 
 // Edit the deferred reply with the final content (Discord content cap ~2000).

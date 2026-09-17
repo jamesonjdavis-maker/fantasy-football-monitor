@@ -114,6 +114,43 @@ def _recent_actual_points(player: Any, week: int, n: int = 3) -> list[float]:
     return out
 
 
+def _weekly_projection(player: Any, week: int) -> float | None:
+    """Best-effort weekly projection for a rostered player (used for other teams'
+    rosters, which don't come through box scores). Falls back to the season
+    projected average, then the season average."""
+    stats = getattr(player, "stats", None)
+    if isinstance(stats, dict):
+        entry = stats.get(week) or stats.get(str(week))
+        if isinstance(entry, dict) and entry.get("projected_points") is not None:
+            try:
+                return round(float(entry["projected_points"]), 2)
+            except (TypeError, ValueError):
+                pass
+    for attr in ("projected_avg_points", "avg_points"):
+        val = getattr(player, attr, None)
+        if val is not None:
+            try:
+                return round(float(val), 2)
+            except (TypeError, ValueError):
+                pass
+    return None
+
+
+def _roster_player(player: Any, week: int) -> dict[str, Any]:
+    """Normalize a team.roster Player (any team in the league) for trade lookups."""
+    return normalize_player(
+        player_id=getattr(player, "playerId", getattr(player, "name", "?")),
+        name=getattr(player, "name", "Unknown"),
+        position=getattr(player, "position", None),
+        pro_team=getattr(player, "proTeam", None),
+        slot="rostered",
+        injury_status=getattr(player, "injuryStatus", None),
+        proj_points=_weekly_projection(player, week),
+        avg_points=getattr(player, "avg_points", None),
+        percent_owned=getattr(player, "percent_owned", None),
+    )
+
+
 def _find_my_box_lineup(
     league: Any, team_id: int | None, week: int
 ) -> tuple[Any, list, Any]:
@@ -182,6 +219,17 @@ def build_league_snapshot(
     except Exception:
         rostered_ids = set()
 
+    # Every team's roster, keyed by team name — powers trade evaluation. Already
+    # loaded (used above for FA filtering), so no extra API calls.
+    try:
+        league_rosters = {
+            (getattr(t, "team_name", None) or f"Team {getattr(t, 'team_id', '?')}"):
+            [_roster_player(p, week) for p in t.roster]
+            for t in league.teams
+        }
+    except Exception:
+        league_rosters = {}
+
     try:
         free_agents = []
         for p in league.free_agents(size=60):
@@ -206,4 +254,5 @@ def build_league_snapshot(
         "league_settings": _league_settings(league, lineup),
         "roster": roster,
         "free_agents": free_agents,
+        "league_rosters": league_rosters,
     }
