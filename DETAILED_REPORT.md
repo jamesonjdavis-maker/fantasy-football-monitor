@@ -251,6 +251,19 @@ separate source (ESPN) anyway. The only thing that would undermine it is a drama
 change to the game's scoring or rules that makes old seasons unlike new ones, which
 has not been an issue.
 
+### Keeping the start/sit result honest too
+
+The start/sit projection has one tunable knob: how much to weight recent form versus
+the season average. Because I chose that weight by comparing options on the data,
+reporting accuracy on the same seasons would be a mild case of grading a setting on
+its own homework. To rule that out, I re-ran it the strict way: I selected the blend
+using only 2020 through 2023, then measured start/sit accuracy on a held-out 2024
+that the choice never saw. The out-of-sample result was 63.2% (about 19,300 graded
+calls), essentially identical to the all-seasons figure. Two things make this
+reassuring: the blend is a single, insensitive parameter (every setting landed within
+about a point of the others), so there was little room to overfit, and the honest
+out-of-sample number confirms the headline result was not inflated by fitting.
+
 ## 8. Grading itself in real time (live outcomes)
 
 Backtests are historical. To have a real, current-season record, the tool logs

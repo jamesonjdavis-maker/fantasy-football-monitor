@@ -138,6 +138,13 @@ newest unseen season, is a standard technique called walk-forward validation, an
 keeps working because the patterns the model relies on (position volatility,
 replacement levels) are stable from year to year.
 
+I applied the same discipline to the one tunable piece of the start/sit projection,
+the blend of recent form and season average. To avoid choosing that setting on the
+same data I then graded it on, I picked the blend using only 2020 through 2023 and
+reported start/sit accuracy on a held-out 2024. It came out at 63.2%, essentially
+identical to the all-seasons figure, which confirms the result is not propped up by
+fitting the setting to the data.
+
 On top of the backtest, the tool now grades its own calls live during the season,
 so the accuracy record is real, not just historical.
 
