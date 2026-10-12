@@ -12,6 +12,7 @@ player beating a starter this week, or to detect a bye — a bye shows up as a
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from ..config import ESPNLeague
@@ -55,33 +56,77 @@ def _ros_projections(player: Any, week: int) -> dict[str, float] | None:
     return out or None
 
 
-def _collect_weekly_projections(
-    league: Any, start_week: int, end_week: int
+def _fetch_weekly_projections(
+    league_id: Any,
+    year: int,
+    espn_s2: str | None,
+    swid: str | None,
+    player_ids: set[str],
+    start_week: int,
+    end_week: int,
 ) -> dict[str, dict[str, float]]:
-    """Build {player_id: {week: projected_points}} for the rest of the season.
+    """Build {player_id: {week: projected_points}} for the rest of the season by
+    reading ESPN's projected stat splits per week — the same source the app's
+    weekly projections come from.
 
-    A roster load only carries the current week's projection, so we read each
-    remaining week's box scores directly (future-week box scores return ESPN's
-    projected points for every rostered player, which is what the app shows).
-    Each week is best-effort: a week ESPN won't serve is just skipped."""
+    A roster/box-score load only carries the current week's projection (future
+    weeks come back as the flat season average), so we query the player-info view
+    directly. Each player's `stats` array holds one projected entry per scoring
+    period (statSourceId == 1); we keep the remaining weeks. Best-effort: any
+    failure returns an empty map and callers fall back to the season average."""
+    ids = sorted({int(x) for x in player_ids if str(x).isdigit()})
+    if not ids:
+        return {}
+    try:
+        import requests
+    except Exception:
+        return {}
+    url = (
+        f"https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/"
+        f"seasons/{year}/segments/0/leagues/{league_id}"
+    )
+    # X-Fantasy-Filter restricts the player universe to just our IDs.
+    filt = {"players": {"filterIds": {"value": ids}, "limit": 3000}}
+    headers = {"X-Fantasy-Filter": json.dumps(filt)}
+    cookies = {}
+    if espn_s2 and swid:
+        cookies = {"espn_s2": espn_s2, "SWID": swid}
+    try:
+        resp = requests.get(
+            url,
+            params={"view": "kona_player_info"},
+            headers=headers,
+            cookies=cookies,
+            timeout=30,
+        )
+        resp.raise_for_status()
+        payload = resp.json()
+    except Exception:
+        return {}
     out: dict[str, dict[str, float]] = {}
-    for w in range(start_week, end_week + 1):
-        try:
-            boxes = league.box_scores(w)
-        except Exception:
+    for entry in payload.get("players", []) or []:
+        player = entry.get("player") or {}
+        pid = str(player.get("id", "") or "")
+        if not pid:
             continue
-        for box in boxes or []:
-            lineup = list(getattr(box, "home_lineup", []) or []) + \
-                list(getattr(box, "away_lineup", []) or [])
-            for bp in lineup:
-                pid = str(getattr(bp, "playerId", "") or "")
-                proj = getattr(bp, "projected_points", None)
-                if not pid or proj is None:
-                    continue
-                try:
-                    out.setdefault(pid, {})[str(w)] = round(float(proj), 2)
-                except (TypeError, ValueError):
-                    pass
+        wk: dict[str, float] = {}
+        for st in player.get("stats", []) or []:
+            if st.get("statSourceId") != 1:  # 1 = projected (0 = actual)
+                continue
+            sp = st.get("scoringPeriodId")
+            # A weekly projection has scoringPeriodId == the week (the season-total
+            # projection uses 0), so an in-range period is what we want.
+            if not isinstance(sp, int) or sp < start_week or sp > end_week:
+                continue
+            total = st.get("appliedTotal")
+            if total is None:
+                continue
+            try:
+                wk[str(sp)] = round(float(total), 2)
+            except (TypeError, ValueError):
+                pass
+        if wk:
+            out[pid] = wk
     return out
 
 
@@ -270,19 +315,6 @@ def build_league_snapshot(
     except Exception as exc:
         return {**base, "error": f"ESPN box score error: {exc}"}
 
-    # Per-week projections for the rest of the season, pulled once from each
-    # remaining week's box scores (a roster load only has the current week).
-    try:
-        weekly = _collect_weekly_projections(league, week, _SEASON_END_WEEK)
-    except Exception:
-        weekly = {}
-
-    roster = []
-    for bp in lineup:
-        pl = _box_player(bp, week, weekly)
-        pl["recent_points"] = _recent_actual_points(bp, week)
-        roster.append(pl)
-
     # Everyone rostered anywhere in the league. ESPN's free_agents() can lag and
     # return a player who's actually owned (e.g. a D/ST just picked up), so we
     # cross-check against real rosters and drop anyone owned. league.teams is
@@ -293,6 +325,29 @@ def build_league_snapshot(
         }
     except Exception:
         rostered_ids = set()
+
+    # Pull the free-agent pool once (reused below), so we can include their IDs
+    # in the single projections request.
+    try:
+        fa_objs = list(league.free_agents(size=60))
+    except Exception:
+        fa_objs = []
+    fa_ids = {str(getattr(p, "playerId", "")) for p in fa_objs}
+
+    # One request for every player's real per-week rest-of-season projections.
+    try:
+        weekly = _fetch_weekly_projections(
+            entry.league_id, year, espn_s2, swid,
+            rostered_ids | fa_ids, week, _SEASON_END_WEEK,
+        )
+    except Exception:
+        weekly = {}
+
+    roster = []
+    for bp in lineup:
+        pl = _box_player(bp, week, weekly)
+        pl["recent_points"] = _recent_actual_points(bp, week)
+        roster.append(pl)
 
     # Every team's roster, keyed by team name — powers trade evaluation. Already
     # loaded (used above for FA filtering), so no extra API calls.
@@ -307,7 +362,7 @@ def build_league_snapshot(
 
     try:
         free_agents = []
-        for p in league.free_agents(size=60):
+        for p in fa_objs:
             fa = _free_agent(p, week, weekly)
             if fa["id"] in rostered_ids:
                 continue
