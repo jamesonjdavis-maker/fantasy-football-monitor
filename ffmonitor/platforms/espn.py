@@ -91,42 +91,45 @@ def _fetch_weekly_projections(
     cookies = {}
     if espn_s2 and swid:
         cookies = {"espn_s2": espn_s2, "SWID": swid}
-    try:
-        resp = requests.get(
-            url,
-            params={"view": "kona_player_info"},
-            headers=headers,
-            cookies=cookies,
-            timeout=30,
-        )
-        resp.raise_for_status()
-        payload = resp.json()
-    except Exception:
-        return {}
+
+    # The endpoint only returns the projected split for the scoring period we ask
+    # for, so request each remaining week explicitly and collect that week's
+    # projection (statSourceId == 1) for every player. One call per week returns
+    # all players, so this is ~14 calls, not one per player.
     out: dict[str, dict[str, float]] = {}
-    for entry in payload.get("players", []) or []:
-        player = entry.get("player") or {}
-        pid = str(player.get("id", "") or "")
-        if not pid:
+    session = requests.Session()
+    for w in range(start_week, end_week + 1):
+        try:
+            resp = session.get(
+                url,
+                params={"view": "kona_player_info", "scoringPeriodId": w},
+                headers=headers,
+                cookies=cookies,
+                timeout=30,
+            )
+            resp.raise_for_status()
+            payload = resp.json()
+        except Exception:
             continue
-        wk: dict[str, float] = {}
-        for st in player.get("stats", []) or []:
-            if st.get("statSourceId") != 1:  # 1 = projected (0 = actual)
+        for entry in payload.get("players", []) or []:
+            player = entry.get("player") or {}
+            pid = str(player.get("id", "") or "")
+            if not pid:
                 continue
-            sp = st.get("scoringPeriodId")
-            # A weekly projection has scoringPeriodId == the week (the season-total
-            # projection uses 0), so an in-range period is what we want.
-            if not isinstance(sp, int) or sp < start_week or sp > end_week:
-                continue
-            total = st.get("appliedTotal")
+            total = None
+            for st in player.get("stats", []) or []:
+                if st.get("statSourceId") != 1:  # 1 = projected (0 = actual)
+                    continue
+                if st.get("scoringPeriodId") != w:  # this week's split only
+                    continue
+                total = st.get("appliedTotal")
+                break
             if total is None:
                 continue
             try:
-                wk[str(sp)] = round(float(total), 2)
+                out.setdefault(pid, {})[str(w)] = round(float(total), 2)
             except (TypeError, ValueError):
                 pass
-        if wk:
-            out[pid] = wk
     return out
 
 
