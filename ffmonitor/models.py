@@ -30,9 +30,10 @@ def normalize_player(
     percent_owned: float | None = None,
     on_bye: bool = False,
     lineup_slot: str | None = None,
+    ros_proj: dict[str, float] | None = None,
 ) -> dict[str, Any]:
     """Build one normalized player dict. Every field is JSON-serializable."""
-    return {
+    player = {
         "id": str(player_id),
         "name": name or "Unknown",
         "position": (position or "").upper() or None,
@@ -48,6 +49,10 @@ def normalize_player(
         "percent_owned": _round(percent_owned),
         "on_bye": bool(on_bye),
     }
+    # Remaining-schedule weekly projections {week: points}, only when available.
+    if ros_proj:
+        player["ros_proj"] = ros_proj
+    return player
 
 
 def _round(value: float | None) -> float | None:

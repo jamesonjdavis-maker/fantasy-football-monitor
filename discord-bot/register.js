@@ -50,6 +50,14 @@ const commands = [
       { name: "league", description: "League to scope to (optional; if player names repeat across leagues)", type: 3, required: false, autocomplete: true },
     ],
   },
+  {
+    name: "projections",
+    description: "A player's week-by-week projections for the rest of the season",
+    options: [
+      { name: "player", description: "Player to look up", type: 3, required: true, autocomplete: true },
+      { name: "league", description: "League to scope to (optional; if the player is in several)", type: 3, required: false, autocomplete: true },
+    ],
+  },
 ];
 
 const url = GUILD_ID

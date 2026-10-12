@@ -30,7 +30,32 @@ def _slot_bucket(slot_position: str | None) -> str:
     return STARTER
 
 
-def _box_player(bp: Any) -> dict[str, Any]:
+# NFL regular season runs through week 18; project the remaining weeks up to it.
+_SEASON_END_WEEK = 18
+
+
+def _ros_projections(player: Any, week: int) -> dict[str, float] | None:
+    """Rest-of-season weekly projections {week: points} from the player's per-week
+    `stats` dict, for the current week through the end of the regular season.
+    ESPN publishes a projected_points entry per scoring period; weeks it hasn't
+    projected yet are simply left out. Returns None if nothing is available."""
+    stats = getattr(player, "stats", None)
+    if not isinstance(stats, dict):
+        return None
+    out: dict[str, float] = {}
+    for w in range(week, _SEASON_END_WEEK + 1):
+        entry = stats.get(w)
+        if entry is None:
+            entry = stats.get(str(w))
+        if isinstance(entry, dict) and entry.get("projected_points") is not None:
+            try:
+                out[str(w)] = round(float(entry["projected_points"]), 2)
+            except (TypeError, ValueError):
+                pass
+    return out or None
+
+
+def _box_player(bp: Any, week: int) -> dict[str, Any]:
     """Convert an espn-api BoxPlayer into a normalized player dict."""
     proj = getattr(bp, "projected_points", None)
     actual = getattr(bp, "points", None)
@@ -51,10 +76,11 @@ def _box_player(bp: Any) -> dict[str, Any]:
         avg_points=getattr(bp, "avg_points", None),
         percent_owned=getattr(bp, "percent_owned", None),
         on_bye=bool(on_bye),
+        ros_proj=_ros_projections(bp, week),
     )
 
 
-def _free_agent(p: Any) -> dict[str, Any]:
+def _free_agent(p: Any, week: int) -> dict[str, Any]:
     return normalize_player(
         player_id=getattr(p, "playerId", getattr(p, "name", "?")),
         name=getattr(p, "name", "Unknown"),
@@ -65,6 +91,7 @@ def _free_agent(p: Any) -> dict[str, Any]:
         proj_points=getattr(p, "projected_avg_points", None),
         avg_points=getattr(p, "avg_points", None),
         percent_owned=getattr(p, "percent_owned", None),
+        ros_proj=_ros_projections(p, week),
     )
 
 
@@ -148,6 +175,7 @@ def _roster_player(player: Any, week: int) -> dict[str, Any]:
         proj_points=_weekly_projection(player, week),
         avg_points=getattr(player, "avg_points", None),
         percent_owned=getattr(player, "percent_owned", None),
+        ros_proj=_ros_projections(player, week),
     )
 
 
@@ -204,7 +232,7 @@ def build_league_snapshot(
 
     roster = []
     for bp in lineup:
-        pl = _box_player(bp)
+        pl = _box_player(bp, week)
         pl["recent_points"] = _recent_actual_points(bp, week)
         roster.append(pl)
 
@@ -233,7 +261,7 @@ def build_league_snapshot(
     try:
         free_agents = []
         for p in league.free_agents(size=60):
-            fa = _free_agent(p)
+            fa = _free_agent(p, week)
             if fa["id"] in rostered_ids:
                 continue
             fa["recent_points"] = _recent_actual_points(p, week)

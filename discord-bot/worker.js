@@ -74,6 +74,14 @@ export default {
         return json({ type: 5 });
       }
 
+      // /projections player:... [league:...] — week-by-week ROS projections.
+      if (name === "projections") {
+        const player = (opts.find((o) => o.name === "player")?.value || "").toString();
+        const league = (opts.find((o) => o.name === "league")?.value || "").toString();
+        ctx.waitUntil(projectionsLater(interaction, player, league, env));
+        return json({ type: 5 });
+      }
+
       // /ask question:... — LLM answer grounded in your data.
       const question = (opts.find((o) => o.name === "question")?.value || "").toString().trim();
       if (!question) {
@@ -120,11 +128,15 @@ async function autocomplete(interaction, env, ctx) {
       return json({ type: 8, data: { choices } });
     }
 
-    // A player slot (give1/get2/...): a single pick. Search by what's typed so
-    // far; scope to the league, and to that side's team if one is named; and hide
-    // players already chosen in another player slot so you don't double-pick.
-    const side = focused.name.startsWith("give") ? "team_give" : "team_get";
-    const teamOpt = (opts.find((o) => o.name === side)?.value || "").toString();
+    // A player field (give1/get2/.../player): a single pick. Search by what's
+    // typed so far; scope to the league, and — for a trade side — to that side's
+    // team if named; and hide players already chosen in another trade slot.
+    const side = focused.name.startsWith("give")
+      ? "team_give"
+      : focused.name.startsWith("get")
+        ? "team_get"
+        : null;
+    const teamOpt = side ? (opts.find((o) => o.name === side)?.value || "").toString() : "";
     const partial = String(focused.value || "").trim();
     const playerSlots = new Set(["give1", "give2", "give3", "get1", "get2", "get3"]);
     const exclude = new Set(
@@ -254,6 +266,81 @@ async function tradeLater(interaction, give, get, league, teamGive, teamGet, env
     text = `Sorry — couldn't evaluate the trade (${String(err).slice(0, 200)}).`;
   }
   await editReply(interaction, env, text);
+}
+
+async function projectionsLater(interaction, player, league, env) {
+  let text;
+  try {
+    const snap = await fetchSnapshot(env);
+    if (!snap) {
+      text = "No league data available yet.";
+    } else {
+      const hit = findWithProjections(snap, player, league);
+      if (!hit) {
+        text = league
+          ? `Couldn't find "${player}" in a league matching "${league}".`
+          : `Couldn't find a player matching "${player}".`;
+      } else {
+        text = projectionLines(hit);
+      }
+    }
+  } catch (err) {
+    text = `Sorry — couldn't pull projections (${String(err).slice(0, 200)}).`;
+  }
+  await editReply(interaction, env, text);
+}
+
+// Find a player across all pools, preferring an entry that actually carries
+// week-by-week projections (the same person can appear in several pools).
+function findWithProjections(snap, query, leagueFilter) {
+  if (!normName(query)) return null;
+  const lf = normName(leagueFilter || "");
+  let fallback = null;
+  for (const [key, s] of Object.entries(snap.platforms || {})) {
+    if (!s || !s.enabled) continue;
+    const league = s.league_name || s.label || key;
+    if (lf && !normName(league).includes(lf)) continue;
+    const pools = [
+      ...(s.roster || []),
+      ...Object.values(s.league_rosters || {}).flat(),
+      ...(s.free_agents || []),
+    ];
+    for (const p of pools) {
+      if (!nameMatches(p.name, query)) continue;
+      if (p.ros_proj && Object.keys(p.ros_proj).length) return { p, league };
+      if (!fallback) fallback = { p, league };
+    }
+  }
+  return fallback;
+}
+
+function projectionLines(hit) {
+  const p = hit.p;
+  const team = p.pro_team ? ", " + p.pro_team : "";
+  const header = `📅 **${p.name}** (${p.position}${team}) — rest-of-season projections (${hit.league})`;
+  const ros = p.ros_proj || {};
+  const weeks = Object.keys(ros).map(Number).filter((n) => !Number.isNaN(n)).sort((a, b) => a - b);
+  if (!weeks.length) {
+    let msg = header + "\nNo week-by-week projections are published for this player yet.";
+    if (p.avg_points != null && p.avg_points > 0) msg += `\nSeason average so far: ${p.avg_points} pts/gm.`;
+    return msg;
+  }
+  const lines = [header];
+  let sum = 0, n = 0;
+  for (const w of weeks) {
+    const v = ros[String(w)];
+    if (typeof v === "number" && v === 0) {
+      lines.push(`Week ${w}: — (bye)`);
+    } else {
+      lines.push(`Week ${w}: ${v}`);
+      if (typeof v === "number") { sum += v; n++; }
+    }
+  }
+  const avg = n ? +(sum / n).toFixed(1) : 0;
+  lines.push(`—\nRemaining total: ${+sum.toFixed(1)} over ${n} game${n === 1 ? "" : "s"} (avg ${avg}/gm)`);
+  let out = lines.join("\n");
+  if (out.length > 1900) out = out.slice(0, 1880) + "\n…(truncated)";
+  return out;
 }
 
 // A compact view of both teams' depth by position, so the AI can weigh need.
