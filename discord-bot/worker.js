@@ -62,10 +62,11 @@ export default {
         return json({ type: 5 });
       }
 
-      // /trade give:... get:... [league:...] — compare value across the league.
+      // /trade give1/get1 [give2/get2/give3/get3] [league] — up to 3 per side.
       if (name === "trade") {
-        const give = (opts.find((o) => o.name === "give")?.value || "").toString();
-        const get = (opts.find((o) => o.name === "get")?.value || "").toString();
+        const join = (ns) => ns.map((n) => opts.find((o) => o.name === n)?.value).filter(Boolean).join(", ");
+        const give = join(["give1", "give2", "give3"]);
+        const get = join(["get1", "get2", "get3"]);
         const league = (opts.find((o) => o.name === "league")?.value || "").toString();
         ctx.waitUntil(tradeLater(interaction, give, get, league, env));
         return json({ type: 5 });
@@ -105,30 +106,19 @@ async function autocomplete(interaction, env, ctx) {
       return json({ type: 8, data: { choices } });
     }
 
-    // give / get: a comma-separated list. Keep the names already chosen and only
-    // complete the trailing one. Discord replaces the whole field with the picked
-    // value, so each choice carries the earlier names as a prefix. If the trailing
-    // token is itself already a full player name (the state right after you pick
-    // one), switch to "add another" mode so the next pick is appended, not
-    // replaced — that's what lets you build a multi-player side.
+    // A player slot (give1/get2/...): a single pick. Search by what's typed so
+    // far, scope to the league if one is set, and hide players already chosen in
+    // the command's other slots so you don't pick the same person twice.
     const leagueOpt = (opts.find((o) => o.name === "league")?.value || "").toString();
-    const raw = String(focused.value || "");
+    const partial = String(focused.value || "").trim();
+    const exclude = new Set(
+      opts
+        .filter((o) => o.name !== focused.name && o.name !== "league")
+        .map((o) => normName(o.value || ""))
+        .filter(Boolean)
+    );
     const players = collectPlayers(snap, leagueOpt);
-    const known = new Set(players.map((p) => normName(p.name)));
-    const lastComma = raw.lastIndexOf(",");
-    const head = lastComma >= 0 ? raw.slice(0, lastComma + 1) : "";
-    const tail = (lastComma >= 0 ? raw.slice(lastComma + 1) : raw).trim();
-
-    let prefix, partial;
-    if (tail && known.has(normName(tail))) {
-      prefix = (head + " " + tail).trim() + ", "; // completed name -> append next
-      partial = "";
-    } else {
-      prefix = head ? head + " " : "";
-      partial = tail;
-    }
-    const exclude = new Set(prefix.split(",").map((s) => normName(s)).filter(Boolean));
-    return json({ type: 8, data: { choices: playerChoices(players, partial, prefix, exclude) } });
+    return json({ type: 8, data: { choices: playerChoices(players, partial, exclude) } });
   } catch {
     return json({ type: 8, data: { choices: [] } });
   }
@@ -164,22 +154,20 @@ function collectPlayers(snap, leagueFilter) {
   return [...out.values()];
 }
 
-// Up to 25 choices. `value` is the full field text with the last name completed,
-// so earlier comma-separated picks are preserved when Discord replaces the input.
-// Players already in the list (exclude) are skipped, as are any whose full value
-// would exceed Discord's 100-char option limit.
-function playerChoices(players, partial, prefix, exclude) {
+// Up to 25 single-player choices matching what's typed, skipping players already
+// chosen in another slot (exclude).
+function playerChoices(players, partial, exclude) {
   let list = players.slice();
   if (partial) list = list.filter((p) => nameMatches(p.name, partial));
   if (exclude && exclude.size) list = list.filter((p) => !exclude.has(normName(p.name)));
   list.sort((a, b) => a.name.localeCompare(b.name));
   const choices = [], seen = new Set();
   for (const p of list) {
-    const value = prefix + p.name;
-    if (value.length > 100 || seen.has(value)) continue;
-    seen.add(value);
+    const k = normName(p.name);
+    if (seen.has(k)) continue;
+    seen.add(k);
     const team = p.pro_team ? ", " + p.pro_team : "";
-    choices.push({ name: `${p.name} (${p.position}${team})`.slice(0, 100), value });
+    choices.push({ name: `${p.name} (${p.position}${team})`.slice(0, 100), value: p.name.slice(0, 100) });
     if (choices.length >= 25) break;
   }
   return choices;

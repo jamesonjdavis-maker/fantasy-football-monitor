@@ -38,9 +38,14 @@ const commands = [
     name: "trade",
     description: "Compare a trade: value of who you give vs who you get",
     options: [
-      { name: "give", description: "Player(s) you would give away (comma-separated for multiple)", type: 3, required: true, autocomplete: true },
-      { name: "get", description: "Player(s) you would receive (comma-separated for multiple)", type: 3, required: true, autocomplete: true },
-      { name: "league", description: "League to scope to (optional; use if player names repeat across leagues)", type: 3, required: false, autocomplete: true },
+      // Required options must be listed before optional ones.
+      { name: "give1", description: "Player you would give away", type: 3, required: true, autocomplete: true },
+      { name: "get1", description: "Player you would receive", type: 3, required: true, autocomplete: true },
+      { name: "give2", description: "2nd player you would give (optional)", type: 3, required: false, autocomplete: true },
+      { name: "get2", description: "2nd player you would receive (optional)", type: 3, required: false, autocomplete: true },
+      { name: "give3", description: "3rd player you would give (optional)", type: 3, required: false, autocomplete: true },
+      { name: "get3", description: "3rd player you would receive (optional)", type: 3, required: false, autocomplete: true },
+      { name: "league", description: "League to scope to (optional; if player names repeat across leagues)", type: 3, required: false, autocomplete: true },
     ],
   },
 ];
