@@ -68,7 +68,9 @@ export default {
         const give = join(["give1", "give2", "give3"]);
         const get = join(["get1", "get2", "get3"]);
         const league = (opts.find((o) => o.name === "league")?.value || "").toString();
-        ctx.waitUntil(tradeLater(interaction, give, get, league, env));
+        const teamGive = (opts.find((o) => o.name === "team_give")?.value || "").toString();
+        const teamGet = (opts.find((o) => o.name === "team_get")?.value || "").toString();
+        ctx.waitUntil(tradeLater(interaction, give, get, league, teamGive, teamGet, env));
         return json({ type: 5 });
       }
 
@@ -96,6 +98,8 @@ async function autocomplete(interaction, env, ctx) {
     const snap = await fetchSnapshotCached(env, ctx);
     if (!snap) return json({ type: 8, data: { choices: [] } });
 
+    const leagueOpt = (opts.find((o) => o.name === "league")?.value || "").toString();
+
     // The `league` field: suggest the league names themselves.
     if (focused.name === "league") {
       const q = normName(focused.value || "");
@@ -106,18 +110,30 @@ async function autocomplete(interaction, env, ctx) {
       return json({ type: 8, data: { choices } });
     }
 
+    // The team fields: suggest the league's team names.
+    if (focused.name === "team_give" || focused.name === "team_get") {
+      const q = normName(focused.value || "");
+      const choices = teamNames(snap, leagueOpt)
+        .filter((n) => !q || normName(n).includes(q))
+        .slice(0, 25)
+        .map((n) => ({ name: n.slice(0, 100), value: n.slice(0, 100) }));
+      return json({ type: 8, data: { choices } });
+    }
+
     // A player slot (give1/get2/...): a single pick. Search by what's typed so
-    // far, scope to the league if one is set, and hide players already chosen in
-    // the command's other slots so you don't pick the same person twice.
-    const leagueOpt = (opts.find((o) => o.name === "league")?.value || "").toString();
+    // far; scope to the league, and to that side's team if one is named; and hide
+    // players already chosen in another player slot so you don't double-pick.
+    const side = focused.name.startsWith("give") ? "team_give" : "team_get";
+    const teamOpt = (opts.find((o) => o.name === side)?.value || "").toString();
     const partial = String(focused.value || "").trim();
+    const playerSlots = new Set(["give1", "give2", "give3", "get1", "get2", "get3"]);
     const exclude = new Set(
       opts
-        .filter((o) => o.name !== focused.name && o.name !== "league")
+        .filter((o) => o.name !== focused.name && playerSlots.has(o.name))
         .map((o) => normName(o.value || ""))
         .filter(Boolean)
     );
-    const players = collectPlayers(snap, leagueOpt);
+    const players = collectPlayers(snap, leagueOpt, teamOpt);
     return json({ type: 8, data: { choices: playerChoices(players, partial, exclude) } });
   } catch {
     return json({ type: 8, data: { choices: [] } });
@@ -133,23 +149,42 @@ function leagueNames(snap) {
   return [...new Set(names)];
 }
 
-// Every distinct player across the (optionally league-scoped) leagues, deduped
-// by name so one person doesn't appear once per league they're rostered in.
-function collectPlayers(snap, leagueFilter) {
+// League team names (the user's own plus every other manager), for the team
+// dropdowns.
+function teamNames(snap, leagueFilter) {
   const lf = normName(leagueFilter || "");
+  const names = new Set();
+  for (const [key, s] of Object.entries(snap.platforms || {})) {
+    if (!s || !s.enabled) continue;
+    const league = s.league_name || s.label || key;
+    if (lf && !normName(league).includes(lf)) continue;
+    if (s.team_name) names.add(s.team_name);
+    for (const team of Object.keys(s.league_rosters || {})) names.add(team);
+  }
+  return [...names];
+}
+
+// Every distinct player across the (optionally league-scoped) leagues, deduped
+// by name. When teamFilter is given, only that team's rostered players are
+// returned (free agents are left out).
+function collectPlayers(snap, leagueFilter, teamFilter) {
+  const lf = normName(leagueFilter || "");
+  const tf = normName(teamFilter || "");
   const out = new Map();
   for (const [key, s] of Object.entries(snap.platforms || {})) {
     if (!s || !s.enabled) continue;
     const league = s.league_name || s.label || key;
     if (lf && !normName(league).includes(lf)) continue;
-    const add = (p) => {
+    const add = (p, owner) => {
       if (!p || !p.name) return;
+      if (tf && !normName(owner).includes(tf)) return;
       const k = normName(p.name);
       if (!out.has(k)) out.set(k, { name: p.name, position: p.position, pro_team: p.pro_team });
     };
-    (s.roster || []).forEach(add);
-    for (const players of Object.values(s.league_rosters || {})) (players || []).forEach(add);
-    (s.free_agents || []).forEach(add);
+    (s.roster || []).forEach((p) => add(p, s.team_name || "you"));
+    for (const [team, players] of Object.entries(s.league_rosters || {}))
+      (players || []).forEach((p) => add(p, team));
+    if (!tf) (s.free_agents || []).forEach((p) => add(p, "free agent"));
   }
   return [...out.values()];
 }
@@ -195,7 +230,7 @@ async function rangesLater(interaction, league, env) {
   await editReply(interaction, env, text);
 }
 
-async function tradeLater(interaction, give, get, league, env) {
+async function tradeLater(interaction, give, get, league, teamGive, teamGet, env) {
   let text;
   try {
     const snap = await fetchSnapshot(env);
@@ -209,8 +244,8 @@ async function tradeLater(interaction, give, get, league, env) {
           ? `Couldn't find those players in a league matching "${league}".`
           : `Couldn't find any players matching "${give}" or "${get}".`;
       } else {
-        text = tradeVerdict(g, r);
-        const context = rosterContext(snap, g, r);
+        text = tradeVerdict(g, r, teamGive, teamGet);
+        const context = rosterContext(snap, g, r, teamGive, teamGet);
         const note = await tradeCommentary(g, r, context, env).catch(() => "");
         if (note) text += `\n\n💬 ${note}`;
       }
@@ -228,7 +263,18 @@ function teamByPosition(players) {
   return Object.entries(by).sort().map(([pos, n]) => `${pos} ${n}`).join(", ") || "n/a";
 }
 
-function rosterContext(snap, g, r) {
+// Find a team's roster within one platform by (fuzzy) name: the user's own team,
+// or any other manager's roster in league_rosters.
+function rosterOfTeam(plat, teamName) {
+  if (!teamName) return null;
+  const t = normName(teamName);
+  if (plat.team_name && normName(plat.team_name).includes(t)) return plat.roster || [];
+  for (const [team, players] of Object.entries(plat.league_rosters || {}))
+    if (normName(team).includes(t)) return players || [];
+  return null;
+}
+
+function rosterContext(snap, g, r, teamGive, teamGet) {
   const leagues = [...new Set([...g.found, ...r.found].map((f) => f.league))];
   if (leagues.length !== 1) return "";
   const leagueName = leagues[0];
@@ -236,11 +282,26 @@ function rosterContext(snap, g, r) {
     (s) => s && s.enabled && (s.league_name || s.label) === leagueName
   );
   if (!plat) return "";
-  const partners = [...new Set(r.found.map((f) => f.owner).filter((o) => o && o !== "free agent" && o !== plat.team_name))];
-  const partnerPlayers = partners.flatMap((t) => (plat.league_rosters || {})[t] || []);
-  let ctx = `League: ${leagueName}. Your team (${plat.team_name}) roster by position: ${teamByPosition(plat.roster)}.`;
-  if (partnerPlayers.length)
-    ctx += ` Trade partner (${partners.join(", ")}) roster by position: ${teamByPosition(partnerPlayers)}.`;
+
+  // Give side: the named team, else the user's own team.
+  const giveName = teamGive || plat.team_name;
+  const giveRoster = rosterOfTeam(plat, giveName);
+
+  // Get side: the named team, else infer from who owns the 'get' players.
+  let getName = teamGet;
+  let getRoster = teamGet ? rosterOfTeam(plat, teamGet) : null;
+  if (!getName) {
+    const partners = [...new Set(r.found.map((f) => f.owner).filter((o) => o && o !== "free agent" && o !== plat.team_name))];
+    getName = partners.join(", ") || null;
+    getRoster = partners.flatMap((t) => (plat.league_rosters || {})[t] || []);
+  }
+
+  const mine = !teamGive; // only call the give side "your team" when it's the default
+  let ctx = `League: ${leagueName}.`;
+  if (giveName && giveRoster && giveRoster.length)
+    ctx += ` ${giveName}${mine ? " (your team)" : ""} roster by position: ${teamByPosition(giveRoster)}.`;
+  if (getName && getRoster && getRoster.length)
+    ctx += ` ${getName} roster by position: ${teamByPosition(getRoster)}.`;
   return ctx;
 }
 
@@ -341,15 +402,15 @@ function sideLines(label, side) {
   return lines;
 }
 
-function tradeVerdict(g, r) {
+function tradeVerdict(g, r, teamGive, teamGet) {
   const lines = ["🔁 **Trade check**"];
   const leagues = new Set([...g.found, ...r.found].map((f) => f.league));
   if (leagues.size === 1) lines[0] += ` (${[...leagues][0]})`;
 
   const gt = sideTotals(g.found), rt = sideTotals(r.found);
-  lines.push(...sideLines("Give", g));
+  lines.push(...sideLines(teamGive ? `${teamGive} gives` : "Give", g));
   if (g.found.length > 1) lines.push(`→ total value ${gt.value > 0 ? "+" : ""}${gt.value} (mid ~${gt.med})`);
-  lines.push(...sideLines("Get", r));
+  lines.push(...sideLines(teamGet ? `${teamGet} gives` : "Get", r));
   if (r.found.length > 1) lines.push(`→ total value ${rt.value > 0 ? "+" : ""}${rt.value} (mid ~${rt.med})`);
 
   if (leagues.size > 1)
@@ -358,11 +419,21 @@ function tradeVerdict(g, r) {
     lines.push("⚠️ Some players weren't found, so the verdict is incomplete.");
 
   if (gt.hasValue && rt.hasValue) {
+    // The give side sends `g` and receives `r`, so its net value is rt - gt.
     const diff = +(rt.value - gt.value).toFixed(1);
-    if (Math.abs(diff) < 1) lines.push("**Verdict:** roughly even on value.");
-    else if (diff > 0) lines.push(`**Verdict:** favors you by about ${diff} points of value-over-replacement.`);
-    else lines.push(`**Verdict:** you'd give up about ${Math.abs(diff)} points of value-over-replacement.`);
-    lines.push("_Value = median projection minus a replacement-level player at that position. Depth, positional need, and the human side of the deal are still your call._");
+    const thirdParty = teamGive || teamGet;
+    const giveSide = teamGive || "you";
+    const getSide = teamGet || "the other side";
+    if (Math.abs(diff) < 1) {
+      lines.push("**Verdict:** roughly even on value.");
+    } else if (diff > 0) {
+      lines.push(`**Verdict:** favors ${giveSide} by about ${diff} points of value-over-replacement.`);
+    } else if (thirdParty) {
+      lines.push(`**Verdict:** favors ${getSide} by about ${Math.abs(diff)} points of value-over-replacement.`);
+    } else {
+      lines.push(`**Verdict:** you'd give up about ${Math.abs(diff)} points of value-over-replacement.`);
+    }
+    lines.push("_Value = median projection minus a replacement-level player at that position. Depth, positional need, and the human side of the deal are still a judgment call._");
   }
   return lines.join("\n");
 }
@@ -377,7 +448,8 @@ async function tradeCommentary(g, r, context, env) {
   return await askOpenRouter(
     "In two or three sentences, give a plain, optimized take on this multi-player fantasy " +
     "trade: weigh total value, roster depth, and positional need (does it fill a hole or " +
-    "create one?). Use the roster-by-position info if given.",
+    "create one?). Use the roster-by-position info if given. If two teams are named, judge " +
+    "it neutrally for both sides by name and don't assume either team is the reader's.",
     facts, env
   );
 }
