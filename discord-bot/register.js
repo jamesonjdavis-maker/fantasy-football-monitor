@@ -40,6 +40,7 @@ const commands = [
     options: [
       { name: "give", description: "Player(s) you would give away (comma-separated for multiple)", type: 3, required: true },
       { name: "get", description: "Player(s) you would receive (comma-separated for multiple)", type: 3, required: true },
+      { name: "league", description: "League to scope to (optional; use if player names repeat across leagues)", type: 3, required: false },
     ],
   },
 ];

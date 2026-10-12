@@ -57,11 +57,12 @@ export default {
         return json({ type: 5 });
       }
 
-      // /trade give:... get:... — compare two players' value across the league.
+      // /trade give:... get:... [league:...] — compare value across the league.
       if (name === "trade") {
         const give = (opts.find((o) => o.name === "give")?.value || "").toString();
         const get = (opts.find((o) => o.name === "get")?.value || "").toString();
-        ctx.waitUntil(tradeLater(interaction, give, get, env));
+        const league = (opts.find((o) => o.name === "league")?.value || "").toString();
+        ctx.waitUntil(tradeLater(interaction, give, get, league, env));
         return json({ type: 5 });
       }
 
@@ -100,20 +101,23 @@ async function rangesLater(interaction, league, env) {
   await editReply(interaction, env, text);
 }
 
-async function tradeLater(interaction, give, get, env) {
+async function tradeLater(interaction, give, get, league, env) {
   let text;
   try {
     const snap = await fetchSnapshot(env);
     if (!snap) {
       text = "No league data available yet.";
     } else {
-      const g = findPlayers(snap, give);
-      const r = findPlayers(snap, get);
+      const g = findPlayers(snap, give, league);
+      const r = findPlayers(snap, get, league);
       if (!g.found.length && !r.found.length) {
-        text = `Couldn't find any players matching "${give}" or "${get}".`;
+        text = league
+          ? `Couldn't find those players in a league matching "${league}".`
+          : `Couldn't find any players matching "${give}" or "${get}".`;
       } else {
         text = tradeVerdict(g, r);
-        const note = await tradeCommentary(g, r, env).catch(() => "");
+        const context = rosterContext(snap, g, r);
+        const note = await tradeCommentary(g, r, context, env).catch(() => "");
         if (note) text += `\n\n💬 ${note}`;
       }
     }
@@ -121,6 +125,29 @@ async function tradeLater(interaction, give, get, env) {
     text = `Sorry — couldn't evaluate the trade (${String(err).slice(0, 200)}).`;
   }
   await editReply(interaction, env, text);
+}
+
+// A compact view of both teams' depth by position, so the AI can weigh need.
+function teamByPosition(players) {
+  const by = {};
+  for (const p of players || []) by[p.position] = (by[p.position] || 0) + 1;
+  return Object.entries(by).sort().map(([pos, n]) => `${pos} ${n}`).join(", ") || "n/a";
+}
+
+function rosterContext(snap, g, r) {
+  const leagues = [...new Set([...g.found, ...r.found].map((f) => f.league))];
+  if (leagues.length !== 1) return "";
+  const leagueName = leagues[0];
+  const plat = Object.values(snap.platforms || {}).find(
+    (s) => s && s.enabled && (s.league_name || s.label) === leagueName
+  );
+  if (!plat) return "";
+  const partners = [...new Set(r.found.map((f) => f.owner).filter((o) => o && o !== "free agent" && o !== plat.team_name))];
+  const partnerPlayers = partners.flatMap((t) => (plat.league_rosters || {})[t] || []);
+  let ctx = `League: ${leagueName}. Your team (${plat.team_name}) roster by position: ${teamByPosition(plat.roster)}.`;
+  if (partnerPlayers.length)
+    ctx += ` Trade partner (${partners.join(", ")}) roster by position: ${teamByPosition(partnerPlayers)}.`;
+  return ctx;
 }
 
 // Normalize a name for forgiving matching: lowercase, strip accents and
@@ -149,11 +176,13 @@ function nameMatches(name, query) {
 // Find a player by name anywhere in your leagues (your roster, other teams'
 // rosters, or free agents), returning the player, league, owner, and that
 // league's replacement levels (for value-over-replacement).
-function findPlayer(snap, query) {
+function findPlayer(snap, query, leagueFilter) {
   if (!normName(query)) return null;
+  const lf = normName(leagueFilter || "");
   for (const [key, s] of Object.entries(snap.platforms || {})) {
     if (!s || !s.enabled) continue;
     const league = s.league_name || s.label || key;
+    if (lf && !normName(league).includes(lf)) continue;  // scope to a league if asked
     const repl = s.replacement_levels || {};
     for (const p of s.roster || [])
       if (nameMatches(p.name, query)) return { p, league, owner: s.team_name || "you", repl };
@@ -168,10 +197,10 @@ function findPlayer(snap, query) {
 
 // Parse a comma-separated list of names and look each one up, so a side of a
 // trade can be one player or several.
-function findPlayers(snap, query) {
+function findPlayers(snap, query, leagueFilter) {
   const found = [], missing = [];
   for (const name of String(query || "").split(",").map((s) => s.trim()).filter(Boolean)) {
-    const hit = findPlayer(snap, name);
+    const hit = findPlayer(snap, name, leagueFilter);
     if (hit) found.push(hit);
     else missing.push(name);
   }
@@ -244,15 +273,17 @@ function tradeVerdict(g, r) {
   return lines.join("\n");
 }
 
-async function tradeCommentary(g, r, env) {
+async function tradeCommentary(g, r, context, env) {
   if (!env.OPENROUTER_API_KEY || (!g.found.length && !r.found.length)) return "";
   const desc = (f) => `${f.p.name} (${f.p.position}, value ${valueOf(f)}, ${rangeStr(f.p)})`;
   const facts =
     `Give: ${g.found.map(desc).join("; ") || "nobody"}. ` +
-    `Get: ${r.found.map(desc).join("; ") || "nobody"}.`;
+    `Get: ${r.found.map(desc).join("; ") || "nobody"}. ` +
+    (context || "");
   return await askOpenRouter(
-    "In one or two sentences, give a plain take on this multi-player fantasy trade, " +
-    "weighing total value and roster depth (giving up two starters for one is riskier).",
+    "In two or three sentences, give a plain, optimized take on this multi-player fantasy " +
+    "trade: weigh total value, roster depth, and positional need (does it fill a hole or " +
+    "create one?). Use the roster-by-position info if given.",
     facts, env
   );
 }
