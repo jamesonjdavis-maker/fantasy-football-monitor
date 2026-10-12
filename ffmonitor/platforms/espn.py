@@ -55,7 +55,47 @@ def _ros_projections(player: Any, week: int) -> dict[str, float] | None:
     return out or None
 
 
-def _box_player(bp: Any, week: int) -> dict[str, Any]:
+def _collect_weekly_projections(
+    league: Any, start_week: int, end_week: int
+) -> dict[str, dict[str, float]]:
+    """Build {player_id: {week: projected_points}} for the rest of the season.
+
+    A roster load only carries the current week's projection, so we read each
+    remaining week's box scores directly (future-week box scores return ESPN's
+    projected points for every rostered player, which is what the app shows).
+    Each week is best-effort: a week ESPN won't serve is just skipped."""
+    out: dict[str, dict[str, float]] = {}
+    for w in range(start_week, end_week + 1):
+        try:
+            boxes = league.box_scores(w)
+        except Exception:
+            continue
+        for box in boxes or []:
+            lineup = list(getattr(box, "home_lineup", []) or []) + \
+                list(getattr(box, "away_lineup", []) or [])
+            for bp in lineup:
+                pid = str(getattr(bp, "playerId", "") or "")
+                proj = getattr(bp, "projected_points", None)
+                if not pid or proj is None:
+                    continue
+                try:
+                    out.setdefault(pid, {})[str(w)] = round(float(proj), 2)
+                except (TypeError, ValueError):
+                    pass
+    return out
+
+
+def _player_ros(obj: Any, week: int, weekly: dict[str, dict[str, float]] | None) -> dict[str, float] | None:
+    """Rest-of-season weekly projections for a player: the per-week box-score map
+    if we have it, else the player's own stats dict as a fallback."""
+    if weekly:
+        pid = str(getattr(obj, "playerId", "") or "")
+        if pid and weekly.get(pid):
+            return weekly[pid]
+    return _ros_projections(obj, week)
+
+
+def _box_player(bp: Any, week: int, weekly: dict[str, dict[str, float]] | None = None) -> dict[str, Any]:
     """Convert an espn-api BoxPlayer into a normalized player dict."""
     proj = getattr(bp, "projected_points", None)
     actual = getattr(bp, "points", None)
@@ -76,11 +116,11 @@ def _box_player(bp: Any, week: int) -> dict[str, Any]:
         avg_points=getattr(bp, "avg_points", None),
         percent_owned=getattr(bp, "percent_owned", None),
         on_bye=bool(on_bye),
-        ros_proj=_ros_projections(bp, week),
+        ros_proj=_player_ros(bp, week, weekly),
     )
 
 
-def _free_agent(p: Any, week: int) -> dict[str, Any]:
+def _free_agent(p: Any, week: int, weekly: dict[str, dict[str, float]] | None = None) -> dict[str, Any]:
     return normalize_player(
         player_id=getattr(p, "playerId", getattr(p, "name", "?")),
         name=getattr(p, "name", "Unknown"),
@@ -91,7 +131,7 @@ def _free_agent(p: Any, week: int) -> dict[str, Any]:
         proj_points=getattr(p, "projected_avg_points", None),
         avg_points=getattr(p, "avg_points", None),
         percent_owned=getattr(p, "percent_owned", None),
-        ros_proj=_ros_projections(p, week),
+        ros_proj=_player_ros(p, week, weekly),
     )
 
 
@@ -163,7 +203,7 @@ def _weekly_projection(player: Any, week: int) -> float | None:
     return None
 
 
-def _roster_player(player: Any, week: int) -> dict[str, Any]:
+def _roster_player(player: Any, week: int, weekly: dict[str, dict[str, float]] | None = None) -> dict[str, Any]:
     """Normalize a team.roster Player (any team in the league) for trade lookups."""
     return normalize_player(
         player_id=getattr(player, "playerId", getattr(player, "name", "?")),
@@ -175,7 +215,7 @@ def _roster_player(player: Any, week: int) -> dict[str, Any]:
         proj_points=_weekly_projection(player, week),
         avg_points=getattr(player, "avg_points", None),
         percent_owned=getattr(player, "percent_owned", None),
-        ros_proj=_ros_projections(player, week),
+        ros_proj=_player_ros(player, week, weekly),
     )
 
 
@@ -230,9 +270,16 @@ def build_league_snapshot(
     except Exception as exc:
         return {**base, "error": f"ESPN box score error: {exc}"}
 
+    # Per-week projections for the rest of the season, pulled once from each
+    # remaining week's box scores (a roster load only has the current week).
+    try:
+        weekly = _collect_weekly_projections(league, week, _SEASON_END_WEEK)
+    except Exception:
+        weekly = {}
+
     roster = []
     for bp in lineup:
-        pl = _box_player(bp, week)
+        pl = _box_player(bp, week, weekly)
         pl["recent_points"] = _recent_actual_points(bp, week)
         roster.append(pl)
 
@@ -252,7 +299,7 @@ def build_league_snapshot(
     try:
         league_rosters = {
             (getattr(t, "team_name", None) or f"Team {getattr(t, 'team_id', '?')}"):
-            [_roster_player(p, week) for p in t.roster]
+            [_roster_player(p, week, weekly) for p in t.roster]
             for t in league.teams
         }
     except Exception:
@@ -261,7 +308,7 @@ def build_league_snapshot(
     try:
         free_agents = []
         for p in league.free_agents(size=60):
-            fa = _free_agent(p, week)
+            fa = _free_agent(p, week, weekly)
             if fa["id"] in rostered_ids:
                 continue
             fa["recent_points"] = _recent_actual_points(p, week)
