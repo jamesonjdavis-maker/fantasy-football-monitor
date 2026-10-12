@@ -105,13 +105,30 @@ async function autocomplete(interaction, env, ctx) {
       return json({ type: 8, data: { choices } });
     }
 
-    // give / get: complete the LAST comma-separated name, keeping earlier ones.
+    // give / get: a comma-separated list. Keep the names already chosen and only
+    // complete the trailing one. Discord replaces the whole field with the picked
+    // value, so each choice carries the earlier names as a prefix. If the trailing
+    // token is itself already a full player name (the state right after you pick
+    // one), switch to "add another" mode so the next pick is appended, not
+    // replaced — that's what lets you build a multi-player side.
     const leagueOpt = (opts.find((o) => o.name === "league")?.value || "").toString();
     const raw = String(focused.value || "");
+    const players = collectPlayers(snap, leagueOpt);
+    const known = new Set(players.map((p) => normName(p.name)));
     const lastComma = raw.lastIndexOf(",");
-    const prefix = lastComma >= 0 ? raw.slice(0, lastComma + 1) + " " : "";
-    const partial = (lastComma >= 0 ? raw.slice(lastComma + 1) : raw).trim();
-    return json({ type: 8, data: { choices: playerChoices(snap, partial, leagueOpt, prefix) } });
+    const head = lastComma >= 0 ? raw.slice(0, lastComma + 1) : "";
+    const tail = (lastComma >= 0 ? raw.slice(lastComma + 1) : raw).trim();
+
+    let prefix, partial;
+    if (tail && known.has(normName(tail))) {
+      prefix = (head + " " + tail).trim() + ", "; // completed name -> append next
+      partial = "";
+    } else {
+      prefix = head ? head + " " : "";
+      partial = tail;
+    }
+    const exclude = new Set(prefix.split(",").map((s) => normName(s)).filter(Boolean));
+    return json({ type: 8, data: { choices: playerChoices(players, partial, prefix, exclude) } });
   } catch {
     return json({ type: 8, data: { choices: [] } });
   }
@@ -149,14 +166,17 @@ function collectPlayers(snap, leagueFilter) {
 
 // Up to 25 choices. `value` is the full field text with the last name completed,
 // so earlier comma-separated picks are preserved when Discord replaces the input.
-function playerChoices(snap, partial, leagueFilter, prefix) {
-  let players = collectPlayers(snap, leagueFilter);
-  if (partial) players = players.filter((p) => nameMatches(p.name, partial));
-  players.sort((a, b) => a.name.localeCompare(b.name));
+// Players already in the list (exclude) are skipped, as are any whose full value
+// would exceed Discord's 100-char option limit.
+function playerChoices(players, partial, prefix, exclude) {
+  let list = players.slice();
+  if (partial) list = list.filter((p) => nameMatches(p.name, partial));
+  if (exclude && exclude.size) list = list.filter((p) => !exclude.has(normName(p.name)));
+  list.sort((a, b) => a.name.localeCompare(b.name));
   const choices = [], seen = new Set();
-  for (const p of players) {
-    const value = (prefix + p.name).slice(0, 100);
-    if (seen.has(value)) continue;
+  for (const p of list) {
+    const value = prefix + p.name;
+    if (value.length > 100 || seen.has(value)) continue;
     seen.add(value);
     const team = p.pro_team ? ", " + p.pro_team : "";
     choices.push({ name: `${p.name} (${p.position}${team})`.slice(0, 100), value });
