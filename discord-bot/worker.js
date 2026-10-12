@@ -415,18 +415,19 @@ function nameMatches(name, query) {
   return q.split(" ").every((w) => words.has(w));
 }
 
-// Replacement level on a SEASON-AVERAGE basis (so it matches seasonAvg): the
-// mean season average of the top few free agents at each position — i.e. the
-// best player you could just pick up. The stored replacement_levels are built
-// from weekly projections, a different scale, so we compute our own here and
-// memoize it on the platform. Falls back to the weekly level if a position has
-// no free-agent data.
+// Replacement level on the SAME basis as tradeBasis (so value-over-replacement
+// is apples-to-apples): the mean projected-per-game of the top few free agents
+// at each position — i.e. the best player you could just pick up. The stored
+// replacement_levels are built from weekly projections, a different scale, so we
+// compute our own here and memoize it. Falls back to the weekly level if a
+// position has no free-agent data.
 function seasonReplacement(s) {
-  if (s.__seasonRepl) return s.__seasonRepl;
+  if (s.__tradeRepl) return s.__tradeRepl;
   const repl = {};
   const byPos = {};
   for (const p of s.free_agents || []) {
-    if (p && p.avg_points > 0) (byPos[p.position] = byPos[p.position] || []).push(p.avg_points);
+    const b = tradeBasis(p);
+    if (b != null && b > 0) (byPos[p.position] = byPos[p.position] || []).push(b);
   }
   for (const pos of ["QB", "RB", "WR", "TE"]) {
     const top = (byPos[pos] || []).sort((a, b) => b - a).slice(0, 3);
@@ -434,7 +435,7 @@ function seasonReplacement(s) {
       ? +(top.reduce((a, b) => a + b, 0) / top.length).toFixed(1)
       : (s.replacement_levels || {})[pos];
   }
-  s.__seasonRepl = repl;
+  s.__tradeRepl = repl;
   return repl;
 }
 
@@ -472,9 +473,8 @@ function findPlayers(snap, query, leagueFilter) {
   return { found, missing };
 }
 
-// Rest-of-season basis: a player's season scoring average per game, which is
-// stable and reflects established production. Falls back to this week's median
-// (then the raw projection) only when the season average isn't available.
+// Season-to-date scoring average per game (fallback basis). Falls back to this
+// week's median, then the raw projection.
 function seasonAvg(p) {
   if (p.avg_points != null && p.avg_points > 0) return p.avg_points;
   if (p.proj_median != null) return p.proj_median;
@@ -482,18 +482,41 @@ function seasonAvg(p) {
   return null;
 }
 
+// Rest-of-season projection per game: the mean of the player's remaining weekly
+// projections, skipping bye weeks (which project 0). Returns null if the player
+// has no forecast in the snapshot (it also reports the game count).
+function rosWeeks(p) {
+  const ros = p.ros_proj;
+  if (!ros) return [];
+  return Object.values(ros).filter((v) => typeof v === "number" && v > 0);
+}
+function rosAvg(p) {
+  const vals = rosWeeks(p);
+  if (!vals.length) return null;
+  return +(vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(2);
+}
+
+// The per-game basis a trade is judged on: rest-of-season projection first
+// (forward-looking is what matters for a trade), then season-to-date average.
+function tradeBasis(p) {
+  const r = rosAvg(p);
+  return r != null ? r : seasonAvg(p);
+}
+
 function valueOf(found) {
   const p = found.p;
-  const avg = seasonAvg(p);
-  if (avg == null) return null;
+  const basis = tradeBasis(p);
+  if (basis == null) return null;
   const rep = found.repl[p.position];
-  return rep != null ? +(avg - rep).toFixed(1) : +Number(avg).toFixed(1);
+  return rep != null ? +(basis - rep).toFixed(1) : +Number(basis).toFixed(1);
 }
 
 function rangeStr(p) {
-  const avg = seasonAvg(p);
-  if (p.avg_points != null && p.avg_points > 0) return `${avg} pts/gm this season`;
-  if (avg != null) return `proj ~${avg} (no season avg yet)`;
+  const r = rosAvg(p);
+  if (r != null) return `${r} pts/gm projected (${rosWeeks(p).length} wk left)`;
+  const a = seasonAvg(p);
+  if (p.avg_points != null && p.avg_points > 0) return `${a} pts/gm this season`;
+  if (a != null) return `proj ~${a}`;
   return "no projection";
 }
 
@@ -501,13 +524,13 @@ function valStr(v) {
   return v == null ? "" : `, value ${v > 0 ? "+" : ""}${v}`;
 }
 
-// Sum value and season-average points for one side of a trade.
+// Sum value and per-game basis for one side of a trade.
 function sideTotals(found) {
   let value = 0, avg = 0, hasValue = false;
   for (const f of found) {
     const v = valueOf(f);
     if (v != null) { value += v; hasValue = true; }
-    const a = seasonAvg(f.p);
+    const a = tradeBasis(f.p);
     if (a != null) avg += a;
   }
   return { value: +value.toFixed(1), avg: +avg.toFixed(1), hasValue };
@@ -554,7 +577,7 @@ function tradeVerdict(g, r, teamGive, teamGet) {
     } else {
       lines.push(`**Verdict:** you'd give up about ${Math.abs(diff)} points of value-over-replacement.`);
     }
-    lines.push("_Value = season scoring average per game minus a replacement-level player at that position (rest-of-season basis). Depth, positional need, injuries, and the human side of the deal are still a judgment call._");
+    lines.push("_Value = projected rest-of-season points per game minus a replacement-level player at that position. Depth, positional need, injuries, and the human side of the deal are still a judgment call._");
   }
   return lines.join("\n");
 }
@@ -568,11 +591,11 @@ async function tradeCommentary(g, r, context, env) {
     (context || "");
   return await askOpenRouter(
     "In two or three sentences, give a plain, optimized take on this multi-player fantasy " +
-    "trade for the rest of the season. The values and points shown are season scoring " +
-    "averages per game, not one-week projections, so judge it as a rest-of-season deal: " +
-    "weigh total value, roster depth, and positional need (does it fill a hole or create " +
-    "one?). Use the roster-by-position info if given. If two teams are named, judge it " +
-    "neutrally for both sides by name and don't assume either team is the reader's.",
+    "trade for the rest of the season. The values and points shown are projected " +
+    "rest-of-season points per game, not one-week numbers, so judge it as a rest-of-season " +
+    "deal: weigh total value, roster depth, and positional need (does it fill a hole or " +
+    "create one?). Use the roster-by-position info if given. If two teams are named, judge " +
+    "it neutrally for both sides by name and don't assume either team is the reader's.",
     facts, env
   );
 }
