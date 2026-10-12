@@ -107,11 +107,11 @@ async function tradeLater(interaction, give, get, env) {
     if (!snap) {
       text = "No league data available yet.";
     } else {
-      const g = findPlayer(snap, give);
-      const r = findPlayer(snap, get);
-      if (!g) text = `Couldn't find a player matching "${give}".`;
-      else if (!r) text = `Couldn't find a player matching "${get}".`;
-      else {
+      const g = findPlayers(snap, give);
+      const r = findPlayers(snap, get);
+      if (!g.found.length && !r.found.length) {
+        text = `Couldn't find any players matching "${give}" or "${get}".`;
+      } else {
         text = tradeVerdict(g, r);
         const note = await tradeCommentary(g, r, env).catch(() => "");
         if (note) text += `\n\n💬 ${note}`;
@@ -166,6 +166,18 @@ function findPlayer(snap, query) {
   return null;
 }
 
+// Parse a comma-separated list of names and look each one up, so a side of a
+// trade can be one player or several.
+function findPlayers(snap, query) {
+  const found = [], missing = [];
+  for (const name of String(query || "").split(",").map((s) => s.trim()).filter(Boolean)) {
+    const hit = findPlayer(snap, name);
+    if (hit) found.push(hit);
+    else missing.push(name);
+  }
+  return { found, missing };
+}
+
 function valueOf(found) {
   const p = found.p;
   const med = p.proj_median != null ? p.proj_median : p.proj_points;
@@ -184,34 +196,65 @@ function valStr(v) {
   return v == null ? "" : `, value ${v > 0 ? "+" : ""}${v}`;
 }
 
+// Sum value and median projection for one side of a trade.
+function sideTotals(found) {
+  let value = 0, med = 0, hasValue = false;
+  for (const f of found) {
+    const v = valueOf(f);
+    if (v != null) { value += v; hasValue = true; }
+    const m = f.p.proj_median != null ? f.p.proj_median : f.p.proj_points;
+    if (m != null) med += m;
+  }
+  return { value: +value.toFixed(1), med: +med.toFixed(1), hasValue };
+}
+
+function sideLines(label, side) {
+  const lines = [`**${label}:**`];
+  for (const f of side.found) {
+    const team = f.p.pro_team ? ", " + f.p.pro_team : "";
+    lines.push(`• ${f.p.name} (${f.p.position}${team}) — ${rangeStr(f.p)}${valStr(valueOf(f))}`);
+  }
+  for (const name of side.missing) lines.push(`• ⚠️ couldn't find "${name}"`);
+  return lines;
+}
+
 function tradeVerdict(g, r) {
-  const gv = valueOf(g), rv = valueOf(r);
   const lines = ["🔁 **Trade check**"];
-  const team = (p) => (p.pro_team ? ", " + p.pro_team : "");
-  lines.push(`**Give:** ${g.p.name} (${g.p.position}${team(g.p)}) — ${rangeStr(g.p)}${valStr(gv)}`);
-  lines.push(`**Get:** ${r.p.name} (${r.p.position}${team(r.p)}, ${r.owner}) — ${rangeStr(r.p)}${valStr(rv)}`);
-  if (g.league !== r.league)
-    lines.push(`⚠️ Different leagues (${g.league} vs ${r.league}) — a trade only works within one league.`);
-  if (gv != null && rv != null) {
-    const diff = +(rv - gv).toFixed(1);
+  const leagues = new Set([...g.found, ...r.found].map((f) => f.league));
+  if (leagues.size === 1) lines[0] += ` (${[...leagues][0]})`;
+
+  const gt = sideTotals(g.found), rt = sideTotals(r.found);
+  lines.push(...sideLines("Give", g));
+  if (g.found.length > 1) lines.push(`→ total value ${gt.value > 0 ? "+" : ""}${gt.value} (mid ~${gt.med})`);
+  lines.push(...sideLines("Get", r));
+  if (r.found.length > 1) lines.push(`→ total value ${rt.value > 0 ? "+" : ""}${rt.value} (mid ~${rt.med})`);
+
+  if (leagues.size > 1)
+    lines.push(`⚠️ Players span different leagues (${[...leagues].join(", ")}) — a trade only works within one league.`);
+  if (g.missing.length || r.missing.length)
+    lines.push("⚠️ Some players weren't found, so the verdict is incomplete.");
+
+  if (gt.hasValue && rt.hasValue) {
+    const diff = +(rt.value - gt.value).toFixed(1);
     if (Math.abs(diff) < 1) lines.push("**Verdict:** roughly even on value.");
     else if (diff > 0) lines.push(`**Verdict:** favors you by about ${diff} points of value-over-replacement.`);
     else lines.push(`**Verdict:** you'd give up about ${Math.abs(diff)} points of value-over-replacement.`);
-    lines.push("_Value = median projection minus a replacement-level player at that position. Positional need and the human side of the deal are still your call._");
+    lines.push("_Value = median projection minus a replacement-level player at that position. Depth, positional need, and the human side of the deal are still your call._");
   }
   return lines.join("\n");
 }
 
 async function tradeCommentary(g, r, env) {
-  if (!env.OPENROUTER_API_KEY) return "";
+  if (!env.OPENROUTER_API_KEY || (!g.found.length && !r.found.length)) return "";
+  const desc = (f) => `${f.p.name} (${f.p.position}, value ${valueOf(f)}, ${rangeStr(f.p)})`;
   const facts =
-    `Give ${g.p.name} (${g.p.position}, value ${valueOf(g)}, ${rangeStr(g.p)}); ` +
-    `Get ${r.p.name} (${r.p.position}, value ${valueOf(r)}, ${rangeStr(r.p)}).`;
-  const answer = await askOpenRouter(
-    "In one or two sentences, give a plain take on this fantasy trade for me.",
+    `Give: ${g.found.map(desc).join("; ") || "nobody"}. ` +
+    `Get: ${r.found.map(desc).join("; ") || "nobody"}.`;
+  return await askOpenRouter(
+    "In one or two sentences, give a plain take on this multi-player fantasy trade, " +
+    "weighing total value and roster depth (giving up two starters for one is riskier).",
     facts, env
   );
-  return answer;
 }
 
 // Edit the deferred reply with the final content (Discord content cap ~2000).

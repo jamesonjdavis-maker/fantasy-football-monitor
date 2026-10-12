@@ -38,8 +38,8 @@ const commands = [
     name: "trade",
     description: "Compare a trade: value of who you give vs who you get",
     options: [
-      { name: "give", description: "Player you would give away", type: 3, required: true },
-      { name: "get", description: "Player you would receive", type: 3, required: true },
+      { name: "give", description: "Player(s) you would give away (comma-separated for multiple)", type: 3, required: true },
+      { name: "get", description: "Player(s) you would receive (comma-separated for multiple)", type: 3, required: true },
     ],
   },
 ];
