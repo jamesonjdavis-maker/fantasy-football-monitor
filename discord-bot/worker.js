@@ -45,6 +45,11 @@ export default {
     // PING -> PONG (endpoint validation)
     if (interaction.type === 1) return json({ type: 1 });
 
+    // APPLICATION_COMMAND_AUTOCOMPLETE — as-you-type suggestions in the client.
+    // Must answer synchronously (no defer), so we respond from a short-lived
+    // cache of the snapshot to stay well under Discord's 3s window.
+    if (interaction.type === 4) return await autocomplete(interaction, env, ctx);
+
     // APPLICATION_COMMAND
     if (interaction.type === 2) {
       const name = interaction.data.name;
@@ -78,6 +83,87 @@ export default {
     return json({ type: 4, data: { content: "Unsupported interaction." } });
   },
 };
+
+// --- Autocomplete: suggest players (and leagues) as the user types ------------
+// Discord fires this on each keystroke, so we read the snapshot from a 60s cache
+// and always reply with a type-8 (choices) response, even if empty.
+async function autocomplete(interaction, env, ctx) {
+  try {
+    const opts = interaction.data.options || [];
+    const focused = opts.find((o) => o.focused);
+    if (!focused) return json({ type: 8, data: { choices: [] } });
+    const snap = await fetchSnapshotCached(env, ctx);
+    if (!snap) return json({ type: 8, data: { choices: [] } });
+
+    // The `league` field: suggest the league names themselves.
+    if (focused.name === "league") {
+      const q = normName(focused.value || "");
+      const choices = leagueNames(snap)
+        .filter((n) => !q || normName(n).includes(q))
+        .slice(0, 25)
+        .map((n) => ({ name: n.slice(0, 100), value: n.slice(0, 100) }));
+      return json({ type: 8, data: { choices } });
+    }
+
+    // give / get: complete the LAST comma-separated name, keeping earlier ones.
+    const leagueOpt = (opts.find((o) => o.name === "league")?.value || "").toString();
+    const raw = String(focused.value || "");
+    const lastComma = raw.lastIndexOf(",");
+    const prefix = lastComma >= 0 ? raw.slice(0, lastComma + 1) + " " : "";
+    const partial = (lastComma >= 0 ? raw.slice(lastComma + 1) : raw).trim();
+    return json({ type: 8, data: { choices: playerChoices(snap, partial, leagueOpt, prefix) } });
+  } catch {
+    return json({ type: 8, data: { choices: [] } });
+  }
+}
+
+function leagueNames(snap) {
+  const names = [];
+  for (const [key, s] of Object.entries(snap.platforms || {})) {
+    if (!s || !s.enabled) continue;
+    names.push(s.league_name || s.label || key);
+  }
+  return [...new Set(names)];
+}
+
+// Every distinct player across the (optionally league-scoped) leagues, deduped
+// by name so one person doesn't appear once per league they're rostered in.
+function collectPlayers(snap, leagueFilter) {
+  const lf = normName(leagueFilter || "");
+  const out = new Map();
+  for (const [key, s] of Object.entries(snap.platforms || {})) {
+    if (!s || !s.enabled) continue;
+    const league = s.league_name || s.label || key;
+    if (lf && !normName(league).includes(lf)) continue;
+    const add = (p) => {
+      if (!p || !p.name) return;
+      const k = normName(p.name);
+      if (!out.has(k)) out.set(k, { name: p.name, position: p.position, pro_team: p.pro_team });
+    };
+    (s.roster || []).forEach(add);
+    for (const players of Object.values(s.league_rosters || {})) (players || []).forEach(add);
+    (s.free_agents || []).forEach(add);
+  }
+  return [...out.values()];
+}
+
+// Up to 25 choices. `value` is the full field text with the last name completed,
+// so earlier comma-separated picks are preserved when Discord replaces the input.
+function playerChoices(snap, partial, leagueFilter, prefix) {
+  let players = collectPlayers(snap, leagueFilter);
+  if (partial) players = players.filter((p) => nameMatches(p.name, partial));
+  players.sort((a, b) => a.name.localeCompare(b.name));
+  const choices = [], seen = new Set();
+  for (const p of players) {
+    const value = (prefix + p.name).slice(0, 100);
+    if (seen.has(value)) continue;
+    seen.add(value);
+    const team = p.pro_team ? ", " + p.pro_team : "";
+    choices.push({ name: `${p.name} (${p.position}${team})`.slice(0, 100), value });
+    if (choices.length >= 25) break;
+  }
+  return choices;
+}
 
 async function answerLater(interaction, question, env) {
   let text;
@@ -344,6 +430,23 @@ async function fetchSnapshot(env) {
   );
   if (!resp.ok) return null;
   return await resp.json();
+}
+
+// Cache the snapshot ~60s so rapid autocomplete keystrokes don't hammer GitHub
+// (and each one stays fast enough for Discord's 3s autocomplete window).
+async function fetchSnapshotCached(env, ctx) {
+  const cacheKey = new Request("https://ff-bot-cache.local/latest.json");
+  const cache = caches.default;
+  const hit = await cache.match(cacheKey);
+  if (hit) return await hit.json();
+  const snap = await fetchSnapshot(env);
+  if (snap) {
+    const toCache = new Response(JSON.stringify(snap), {
+      headers: { "Content-Type": "application/json", "Cache-Control": "max-age=60" },
+    });
+    if (ctx) ctx.waitUntil(cache.put(cacheKey, toCache));
+  }
+  return snap;
 }
 
 async function buildContext(env) {

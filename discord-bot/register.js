@@ -31,16 +31,16 @@ const commands = [
     name: "ranges",
     description: "This week's floor/median/ceiling ranges for a team",
     options: [
-      { name: "league", description: "League name (optional; omit for all)", type: 3, required: false },
+      { name: "league", description: "League name (optional; omit for all)", type: 3, required: false, autocomplete: true },
     ],
   },
   {
     name: "trade",
     description: "Compare a trade: value of who you give vs who you get",
     options: [
-      { name: "give", description: "Player(s) you would give away (comma-separated for multiple)", type: 3, required: true },
-      { name: "get", description: "Player(s) you would receive (comma-separated for multiple)", type: 3, required: true },
-      { name: "league", description: "League to scope to (optional; use if player names repeat across leagues)", type: 3, required: false },
+      { name: "give", description: "Player(s) you would give away (comma-separated for multiple)", type: 3, required: true, autocomplete: true },
+      { name: "get", description: "Player(s) you would receive (comma-separated for multiple)", type: 3, required: true, autocomplete: true },
+      { name: "league", description: "League to scope to (optional; use if player names repeat across leagues)", type: 3, required: false, autocomplete: true },
     ],
   },
 ];
@@ -63,9 +63,10 @@ const url = GUILD_ID
   console.log(`HTTP ${res.status}`);
   console.log(text);
   if (res.ok) {
+    const names = commands.map((c) => "/" + c.name).join(", ");
     console.log(GUILD_ID
-      ? "✅ Registered /ask and /ranges (guild, instant)."
-      : "✅ Registered /ask and /ranges (global, may take up to ~1h).");
+      ? `✅ Registered ${names} (guild, instant).`
+      : `✅ Registered ${names} (global, may take up to ~1h).`);
   } else {
     console.log("❌ Registration failed. 401 = bad bot token; 403 'Missing " +
       "Access' = re-add the bot to the server with the applications.commands scope.");
