@@ -1,185 +1,529 @@
 # Fantasy Football Monitor
 
-I play in five ESPN fantasy football leagues, and I got tired of logging into
-each one every morning to check for injuries, waiver-wire movement, and whether
-I had someone on my bench who should be starting. So I built a tool that does it
-for me.
+A tool I built that watches all five of my ESPN fantasy football leagues every
+day, figures out what actually changed, runs real analytics to find opportunities,
+and messages me on Discord only when something is worth knowing. I can also ask it
+questions, pull rest-of-season projections, and work trades from my phone.
 
-Every morning it checks all five leagues, notices what actually changed since
-yesterday, runs some analysis to spot start/sit and waiver opportunities, and
-sends me a single Discord message, but only when there's something worth
-knowing. It runs itself on a schedule in the cloud, and I can even ask it
-questions from my phone.
+This README is the full build report: it walks through how every part of the
+project works, the reasoning behind each choice, and the problems solved along the
+way. It is written to be understandable without a programming background, while
+still being specific about what actually happens under the hood. Setup and
+running instructions are at the end (section 16).
 
-This started as a way to save myself ten minutes a day. It turned into a project
-about data pipelines, machine learning, and honest model evaluation.
+---
 
-## What it does
+## Table of contents
 
-- **Watches all my leagues at once.** It pulls my roster, bench, and the top
-  free agents from each ESPN league every day.
-- **Notices real changes.** It saves a snapshot each day and compares it to
-  yesterday's, so it only tells me about things that actually moved, like an
-  injury designation flipping to OUT, a player getting added or dropped, a starter
-  heading into a bye week, or a free agent that's suddenly getting picked up
-  everywhere.
-- **Gives me start/sit and waiver advice.** It flags bench players projected to
-  outscore a starter (and it knows the rules, so it won't tell me to bench my
-  only tight end for a wide receiver), and on the close calls it breaks the tie
-  with the Vegas game environment, how many points each team is expected to
-  score. It also ranks the best free agents by a value score and reads live
-  point spreads to spot favorable game scripts.
-- **Only bothers me when it matters.** Quiet days get a short "all clear"
-  digest; busy days get the details. Everything lands in Discord.
-- **Keeps its own report card.** It logs every start/sit call it makes and grades
-  it once the games are final, so I have a running record of how often it's right.
-- **Answers questions and works trades.** From Discord on my phone I can ask it
-  "who should I start in the BBL this week?", pull up my whole team's
-  floor/ceiling ranges, see a player's week-by-week projections for the rest of
-  the season, check a multi-player trade offer, or have it find deals with a
-  specific manager, all using my actual rosters and projections, including the
-  other managers' rosters.
+1. The big picture
+2. How the pieces fit together
+3. Collecting the data (snapshots)
+4. Finding what changed (diffing)
+5. The analysis: start/sit, waivers, game script
+6. The machine learning, explained
+7. Proving it works (backtesting and model quality)
+8. Grading itself in real time (live outcomes)
+9. Sending alerts
+10. The AI assistant (Discord bot)
+11. Trade evaluation
+12. Engineering practices
+13. Problems we hit and how we fixed them
+14. Honest limitations
+15. Glossary
+16. Setup and running it yourself
 
-Under the hood it keeps every password and cookie in GitHub's encrypted secrets,
-never in the code, and runs on a free GitHub Actions schedule that commits each
-day's snapshot back to the repo, so there's no database or server to pay for.
+---
 
-## The analytics
+## 1. The big picture
 
-The fun part. All of this runs on free, public data: the ESPN API for live
-projections and a public NFL history dataset (nflverse) for everything else.
+The tool answers a simple question every morning: "Is there anything in my five
+fantasy leagues I should act on today?" To do that well, it has to know the
+current state of each league, notice what changed, judge whether any change or
+opportunity is worth my attention, and then tell me, without crying wolf on quiet
+days.
 
-- **Monte Carlo floor and ceiling.** A single projected number hides risk: 12
-  points could be a safe 10–14 or a boom-or-bust 3–28. So instead of trusting
-  one number, I learned each position's week-to-week volatility from years of
-  history and simulate thousands of possible outcomes for every player, then read
-  off a floor, a median, and a ceiling.
-- **Value over replacement.** Twelve points at quarterback is not the same as
-  twelve at tight end, because a startable quarterback is easy to find and a
-  startable tight end isn't. So waiver value is measured against what a freely
-  available player at that position would give you, which makes players
-  comparable across positions.
-- **"Heating up" detection.** Using years of history, I worked out how big a jump
-  in recent production actually counts as notable for each position, then flag
-  players whose recent form clears that bar.
-- **Game script from betting lines.** Heavy favorites tend to run the ball late
-  (good for their running backs); heavy underdogs throw to catch up (their
-  pass-catchers get garbage-time volume). It pulls live point spreads and flags
-  the players affected.
+The design principle throughout is **graceful degradation**: the core monitor is
+simple and reliable, and every fancier feature is bolted on in a way that can fail
+quietly without breaking the basics. If the machine-learning data is down, the
+start/sit advice still works. If the odds feed is down, everything else still runs.
 
-## Rest-of-season projections
+## 2. How the pieces fit together
 
-ESPN's API only hands out a player's current-week projection and a season
-average, not a real week-by-week forecast for the rest of the year. So to answer
-"what is this player worth from here on," the tool builds its own projection for
-every remaining week. Each week starts from a per-game baseline and is then
-nudged by the things that actually move a given week, with bye weeks set to zero:
+The code is a Python package called `ffmonitor`, split into focused files:
 
-- **Baseline (volume and efficiency).** A recency-weighted blend of the player's
-  per-game scoring, so a rising or fading role shows through instead of a flat
-  season number. Fantasy points already bake in a player's volume and efficiency,
-  so this is where both live.
-- **Volume trend, efficiency, and team context.** Separate, forward-looking
-  nudges from the NFL history data: whether a player's recent opportunity
-  (targets and carries) is trending up or down, a regression of unsustainable
-  efficiency back toward position norms, and how fast and pass-heavy the player's
-  own offense is.
-- **Opponent (defense vs. position).** How many points that week's opponent
-  gives up to the player's position versus the league average.
-- **Vegas game environment.** The game's implied team total (more expected
-  scoring lifts everyone) and the spread's game script (favorites help their
-  backs, underdogs help their pass-catchers). Only the near-term weeks, since
+- **config** loads settings and secrets from the environment.
+- **models** defines one standard "player" shape so every league looks identical to
+  the rest of the code.
+- **platforms/espn** talks to ESPN and builds a snapshot of a league.
+- **snapshot / storage** assemble and save the daily snapshot, and load yesterday's.
+- **diff** compares two days to produce a list of real changes.
+- **analyze** runs the point-in-time checks (start/sit, waivers, game script).
+- **ml** holds the machine-learning models (Monte Carlo, value over replacement,
+  the heating-up signal).
+- **odds** pulls betting lines.
+- **outcomes** logs the tool's recommendations and grades them later.
+- **eval** is the offline backtesting and model-quality harness.
+- **alerts** formats and sends the message.
+- **main** is the conductor that runs the whole sequence.
+
+A separate `discord-bot` folder holds the phone assistant, which is a small cloud
+function written in JavaScript.
+
+The daily run, in order: build today's snapshot, load yesterday's, diff them, fetch
+odds, run the machine-learning add-ons, run the analysis, log and grade
+recommendations, save today's snapshot, and send an alert if warranted.
+
+## 3. Collecting the data (snapshots)
+
+Every run, for each league, the tool logs into ESPN (using account cookies for
+private leagues) and reads:
+
+- My starting lineup and bench, with each player's weekly projection, position,
+  injury status, and recent scores.
+- This week's opponent.
+- The league's roster rules (how many of each position start), read directly from
+  my lineup so the tool adapts to each league automatically.
+- The top available free agents, cross-checked against every team's roster so it
+  never suggests a player who is actually owned.
+- Every team's full roster (used later for trade evaluation).
+
+All of this is normalized into a plain, standard format and saved as a dated file
+like `snapshot-2026-09-17.json`, plus a `latest.json` pointer. Saving as plain
+files is deliberate: it makes the data easy to diff day-over-day and requires no
+database.
+
+A neat trick: bye weeks aren't directly exposed by ESPN, so the tool infers them.
+A player who is projected for zero points while otherwise healthy is on a bye.
+
+## 4. Finding what changed (diffing)
+
+Alerting on everything would be noise. So each run compares today's snapshot to the
+most recent previous one and emits only real changes:
+
+- Injury status changes (and it shouts louder when it's one of my starters).
+- Players added or dropped anywhere I'm watching.
+- A starter newly on a bye.
+- A free agent that's suddenly trending up in ownership.
+
+Because the previous snapshot is committed back to the project each day, "yesterday"
+is always available, with no external storage.
+
+## 5. The analysis: start/sit, waivers, game script
+
+These checks look at today's snapshot alone (no history needed) and produce flags.
+
+**Start/sit.** For each bench player, the tool looks for a starter it could
+legally replace and is projected to beat. "Legally" matters: the tool knows each
+starter's exact lineup slot, so it will suggest a wide receiver for a flex slot but
+never for a required tight-end slot. It only flags when the bench player is
+projected to beat the starter by a set margin (2 points by default), which focuses
+attention on decisions that actually matter. On close calls, it adds a tie-breaker
+from the Vegas game environment: if the bench player's team is expected to score
+noticeably more than the starter's team, it says so.
+
+**Waiver value.** Free agents are ranked by a value score designed so positions
+compare fairly. The core of the score is **value over replacement**: a player's
+projection minus what a freely available player at the same position would give
+you. On top of that, it adds a bonus for a high Monte Carlo ceiling (upside), a
+bonus for hot recent form, and a bonus if the player fills a position I'm weak at.
+The top few per league are surfaced.
+
+**Game script.** Using live point spreads, the tool flags players in lopsided
+games: running backs on heavy favorites (likely to run out the clock), and
+pass-catchers on heavy underdogs (likely to get garbage-time volume), for example.
+
+## 6. The machine learning, explained
+
+Four models, all learned from years of public NFL history and all fail-safe.
+
+### Monte Carlo floor and ceiling
+
+A single projected number hides risk. The tool turns each projection into a range:
+
+1. From history, it learns each position's **performance-multiplier distribution**,
+   which is simply each week's actual points divided by that player's season
+   average. This is a dimensionless "boom or bust" shape: wide receivers swing
+   harder than running backs, for instance. It's also split by scoring tier,
+   because lower-scored players are relatively boomier than stars.
+2. For a player projected for a given number of points, it simulates thousands of
+   outcomes by multiplying the projection by randomly drawn multipliers, then reads
+   off the 10th, 50th, and 90th percentiles as the floor, median, and ceiling. It
+   also labels the shape as safe-floor, balanced, or boom-bust.
+
+The clever part: because the outcome is projection times multiplier, the floor and
+ceiling can be read directly from the multiplier percentiles, which makes it fast
+and exact.
+
+### Value over replacement
+
+The tool computes, per position, the weekly points a "replacement level" player
+scores. It does this by finding the last startable rank at each position for the
+league's specific settings (teams times starters, splitting flex demand across
+running back, receiver, and tight end), then measuring the historical points a
+player at that rank scores. Subtracting this replacement level makes points
+comparable across positions, which is exactly what waiver and trade decisions need.
+Superflex leagues automatically raise the quarterback bar, since startable
+quarterbacks are scarcer there.
+
+### Heating up
+
+Rather than guess what counts as a "notable" hot streak, the tool learns it. For
+each position it computes the 75th percentile of historical positive jumps in
+recent-form-versus-season-average, and uses that as the bar. A current player whose
+recent three-week scoring clears their own season average by more than that bar is
+flagged as heating up. History and the current season are independent sources that
+share one unit (fantasy points), so a gap in the historical feed never blocks the
+current-season signal.
+
+### Game script from odds
+
+The odds feed provides point spreads and over/unders. From those, the tool computes
+each team's **implied point total**, how many points Vegas expects them to score,
+as (game total minus the team's spread) divided by two. That number feeds the
+game-script flags and the start/sit tie-breaker.
+
+The odds come from each game's summary endpoint on ESPN's public API (its
+`pickcenter`), which is where ESPN moved the betting lines after dropping them from
+the scoreboard feed. The lines power both the start/sit tie-breaker and the Vegas
+layer of the projection model below.
+
+### Rest-of-season weekly projections (the layered model)
+
+A trade or a long-term roster call is about what a player is worth from here to the
+end of the season, not this week. The problem: ESPN's API only exposes a player's
+current-week projection and a season average, never a real week-by-week forecast
+for the rest of the year (I confirmed this by requesting future scoring periods
+directly, which just return the season average). So the tool computes its own
+rest-of-season line for every remaining week.
+
+It is a **layered model**: a per-game baseline, multiplied by a set of clamped
+factors, with each layer capturing one thing and only one thing, so nothing is
+double-counted. The code lives in `ffmonitor/ml/matchup.py` (the per-week factors),
+`ffmonitor/ml/playerfactors.py` (the player and team season factors), and
+`ffmonitor/ml/weather.py` (the weather factor), and the result is attached to every
+player in the snapshot as `ros_proj` by `ffmonitor/platforms/espn.py`.
+
+**The baseline** is a recency-weighted blend of the player's per-game fantasy
+points (about two-thirds season, one-third last three games). Fantasy points are
+already the product of a player's volume and efficiency, so the baseline is where
+both of those live; the recency weighting lets a changed role or a hot/cold streak
+move the number instead of a flat season average.
+
+**The level factors** (roughly constant across weeks, so they scale the baseline)
+come from the NFL history data:
+
+- **Volume / role trend:** recent opportunity (targets plus carries, or pass
+  attempts for QBs) versus the season, so a rising role nudges up and a shrinking
+  one down. This is forward-looking in a way raw points are not, because role leads
+  production.
+- **Efficiency regression:** a player's points per opportunity pulled part of the
+  way back toward the norm for their position, so a touchdown-heavy hot start does
+  not project forward as if it will continue.
+- **Team pace and pass rate:** a fast or pass-heavy offense lifts its pass catchers
+  (and a run-heavy one its backs), measured as the team's plays and pass rate
+  versus the league.
+
+**The weekly factors** (what actually makes each week differ) are:
+
+- **Opponent, defense vs. position:** how many fantasy points that week's opponent
+  allows to the player's position per game, divided by the league average, clamped
+  so no single matchup is absurd.
+- **Vegas game environment:** the team's implied total (more expected scoring lifts
+  everyone) and a position-specific game-script nudge from the spread (favorites
+  help their backs, underdogs help their pass catchers). Near-term only, since
   books do not post lines months out.
-- **Weather.** Wind, rain, and extreme cold cut into the passing game (pass
-  catchers more than backs) at outdoor stadiums, for games inside the forecast
-  window. Domes are left alone.
-- **Injuries.** A known OUT/IR/suspension zeroes the current week; doubtful and
-  questionable take a haircut.
+- **Weather:** wind, precipitation, and extreme cold at outdoor stadiums cut into
+  the passing game, pass catchers more than backs, using the free Open-Meteo
+  forecast for games inside its window. Domes and far-out games are untouched.
+- **Injury:** a known OUT, IR, PUP, or suspension zeroes the current week; doubtful
+  and questionable take a haircut. Status only speaks to the current week, so that
+  is the only week it touches.
+- **Bye weeks** are set to zero.
 
-These are clearly labeled as the tool's own estimates, not ESPN's numbers. The
-far-out weeks lean mostly on the baseline and opponent, since Vegas, weather, and
-injury information only exist for the near term, and that information folds in
-automatically as each week approaches. When the current NFL season's history
-isn't published yet, the matchup data falls back to the most recent season that
-is, the same kind of prior real projection systems lean on early in a year.
+Two honesty points matter. First, these are clearly **labeled as the tool's own
+estimates**, not ESPN's numbers. Second, the far-out weeks necessarily lean mostly
+on the baseline and the opponent, because Vegas lines, weather forecasts, and
+injury statuses only exist for the near term; that information folds in on its own
+as each week approaches.
 
-## Does it actually work?
+**A data-availability wrinkle:** the matchup and player/team factors need recent
+weekly NFL stats, and nflverse does not always have the current (or even the most
+recent) season published yet. So the tool walks back to the most recent season
+whose weekly data actually loads and uses that as the prior. Last season's
+defensive tendencies are a sound starting point before the new season has enough
+games, which is the same thing real projection systems do early in a year. A small
+`proj_meta` block is written into each snapshot recording which data layers loaded
+and which season the matchup data came from, so a flat or missing layer is easy to
+diagnose instead of silently wrong.
 
-I didn't want to just claim it was smart, so I wanted to measure it. I built a
-backtest that replays the recommendation logic across five recent NFL seasons,
-using only the information that would have been available at the time, with no
-peeking at the future. A few of the results:
+## 7. Proving it works (backtesting and model quality)
 
-- **Its start/sit calls were right 63% of the time.** Whenever the model said to
-  start one player over another, the player it picked really did outscore the
-  other one 63% of the time, across about 99,000 of these head-to-head calls. With
-  no information at all you would be right half the time (a coin flip), so 63% is a
-  real edge, and each correct call added roughly 3.7 points to the lineup. Those
-  points are what win close matchups.
-- **The free agents it flagged panned out 2.4 times as often.** When it points at
-  a player on the waiver wire as worth adding, 40% of those players went on to
-  become genuinely start-worthy over the next three weeks, versus only 17% for a
-  typical available player. In plain terms, its picks hit more than twice as often
-  as grabbing someone at random.
-- **Its floor and ceiling ranges can be trusted.** For each player it gives a
-  range it expects the real result to fall inside 80% of the time. Tested against
-  seasons it had never seen, the real result landed in that range about 81% of the
-  time, almost exactly what it promised. A range you can trust is what makes the
-  "safe" versus "boom-or-bust" labels actually mean something.
+The most important part: I measured the tool instead of just claiming it was smart.
+This lives in the `eval` folder and runs offline on historical data.
 
-You can run the evaluation yourself:
+**The golden rule is no leakage.** When the tool grades a decision for a given week,
+it may only use data from earlier weeks. This is enforced by shifting every rolling
+average back by one week, and never letting data bleed across seasons. Without this
+rule, a backtest would cheat by peeking at the future and look better than reality.
 
-```bash
-python -m ffmonitor.eval.backtest        # start/sit, waiver, and lineup backtests
-python -m ffmonitor.eval.model_quality   # projection error and calibration
-```
+**The backtests** (in `eval/backtest.py`) replay the logic across five recent
+seasons, about 26,000 player-weeks:
 
-And you can check the live, in-season record any time:
+- **Start/sit.** For every pair of comparable players in a week, when the model
+  projects one over the other by the margin, did that player actually score more?
+  Across about 99,000 such calls, the answer was yes 63% of the time, versus 50%
+  for a coin flip, adding about 3.7 points. Accuracy rises with the projected gap,
+  reaching about 73% on the most confident calls.
+- **Waiver value.** Flag the best waiver-pool players using data through a given
+  week, then measure the next three weeks. Flagged players became startable 40% of
+  the time, versus a 17% base rate, a 2.4 times lift.
+- **Lineup capture.** The model's lineup captured 59% of the theoretically possible
+  points, beating a naive "chase last week's scorers" strategy by 7 points.
 
-```bash
-python -m ffmonitor.outcomes
-```
+**Model quality** (in `eval/model_quality.py`):
 
-## Ask it questions
+- **Projection error** was about 19% lower than a naive last-week baseline.
+- **Calibration** checks whether the floor/ceiling ranges are honest. A raw 80%
+  range only covered about 74% of real outcomes, meaning it was a touch too narrow
+  (it ignored the projection's own uncertainty). After widening it, fit on some
+  seasons and tested on a held-out season, it covered about 81%, almost exactly the
+  80% it promises. That is a genuine, out-of-sample calibration result.
 
-I can ask from my terminal, or from **Discord on my phone**, and it answers using
-my live rosters and projections.
+You can run both yourself: `python -m ffmonitor.eval.backtest` and
+`python -m ffmonitor.eval.model_quality`.
 
-```bash
-python -m ffmonitor.ask "Start Odunze or Fannin in the BBL this week?"
-```
+### A fair question: how can you backtest a model built from history?
 
-To do it from Discord I built my own bot: a Discord application with a few slash
-commands. When I run one, Discord sends it to a small serverless function I
-deployed on a free Cloudflare Worker. That function checks the request really came
-from Discord, pulls in my latest league data, and answers back in the channel.
-Because it lives in the cloud, it works from my phone with my computer off. The
-commands:
+If a model learns from historical data, testing it on historical data sounds
+circular. The resolution is the foundational rule of machine-learning evaluation:
+split history into a training slice and a testing slice, and never let the test
+slice influence the model.
 
-- **`/ask`**: a natural-language question, answered by an AI model with my league
-  data as context ("who's my best waiver add at running back?").
-- **`/ranges`**: my whole team's floor / median / ceiling for the week, straight
-  from the Monte Carlo model (no AI, so it never drops a player or invents a
-  number). Optionally narrowed to one league.
-- **`/trade`**: sizes up a trade on rest-of-season value. It takes **multiple
-  players per side** (`give1/give2/give3`, `get1/get2/get3`), so 2-for-1 and
-  3-for-2 deals work, and optional `team_give`/`team_get` fields so I can evaluate
-  a trade between two **other** managers as a neutral consultant. It compares each
-  side's value over replacement, warns on positional holes, and adds a short AI
-  take.
-- **`/projections`**: a player's week-by-week projected points for the rest of the
-  season (the model above), with byes flagged and a remaining total.
-- **`/tradefinder`**: give it a team to trade with and it suggests deals that help
-  both sides, pairing my surplus at their weak spot against their surplus at mine,
-  value-fair, including multi-player packages, then has the AI pick the best ones
-  to pitch.
+For the calibration specifically, the tool learns each position's volatility from
+all seasons except the most recent, then measures whether its ranges hold up on the
+most recent season, which it never saw. Right now that means training on 2020
+through 2023 and testing on 2024. Both are history, but they are separate,
+non-overlapping slices, so it is a genuine out-of-sample test.
 
-Every player and team field has **autocomplete**, so I pick from a dropdown of my
-actual rosters and league teams instead of typing names. The `/ask` and `/trade`
-model is easy to swap with `discord-bot/set-model.sh`. The full walkthrough for
-building the bot yourself is in [discord-bot/SETUP.md](discord-bot/SETUP.md).
+It is worth being precise about which parts this applies to. The start/sit and
+waiver backtests do not learn parameters from the data; they apply fixed,
+leakage-safe rules and grade each week against that week's own future, so they do
+not need a train/test split. The split matters specifically for the calibration,
+which fits a range-width factor and has to prove it generalizes.
 
-## Setup
+### Why it keeps working as new seasons arrive
+
+When next season's data (2025) is published, the split shifts automatically: the
+tool trains on 2020 through 2024 and tests on 2025. Moving 2024 into the training
+set is correct, not a problem. The only rule is that the season being tested stays
+out of training, and 2025 is now the untouched test. The model "knowing about" 2024
+tells it stable patterns, like how boom-or-bust each position tends to be, but it
+says nothing about who scores what in 2025, so it cannot leak. Using older seasons
+to forecast a newer one is exactly what you want.
+
+This retrain-on-the-past, test-on-the-newest-season approach is a standard technique
+called walk-forward (or expanding-window) validation. It holds up year over year
+because the patterns the model relies on, position volatility and replacement
+levels, are stable across seasons, and the live current-season signals come from a
+separate source (ESPN) anyway. The only thing that would undermine it is a dramatic
+change to the game's scoring or rules that makes old seasons unlike new ones, which
+has not been an issue.
+
+### Keeping the start/sit result honest too
+
+The start/sit projection has one tunable knob: how much to weight recent form versus
+the season average. Because I chose that weight by comparing options on the data,
+reporting accuracy on the same seasons would be a mild case of grading a setting on
+its own homework. To rule that out, I re-ran it the strict way: I selected the blend
+using only 2020 through 2023, then measured start/sit accuracy on a held-out 2024
+that the choice never saw. The out-of-sample result was 63.2% (about 19,300 graded
+calls), essentially identical to the all-seasons figure. Two things make this
+reassuring: the blend is a single, insensitive parameter (every setting landed within
+about a point of the others), so there was little room to overfit, and the honest
+out-of-sample number confirms the headline result was not inflated by fitting.
+
+## 8. Grading itself in real time (live outcomes)
+
+Backtests are historical. To have a real, current-season record, the tool logs
+every start/sit call it makes into `data/recommendations.json`, then grades each
+one once that week's games are final by reading the players' actual scores from the
+committed snapshots. A call is correct if the player it said to start outscored the
+one it said to sit. The running record ("start/sit: 12-5, 71%") is shown in the
+alert footer and available on demand with `python -m ffmonitor.outcomes`.
+
+A subtle but crucial fix here: the workflow had to be told to commit the
+recommendations file back to the repo, otherwise the log would reset every run and
+never accumulate.
+
+## 9. Sending alerts
+
+Alerts go to Discord (rich cards) and optionally ntfy (plain phone push). The tool
+stays quiet on days with nothing worth flagging, except for one daily "all clear"
+digest so I know it actually ran.
+
+A real bug surfaced here and is worth calling out: one busy morning, the alert came
+through on ntfy but not Discord. The cause was that Discord rejects any single
+message longer than 6,000 characters, and a packed "keep everything" digest
+exceeded it. The fix splits alerts across multiple messages that each stay within
+Discord's limits, splits a single oversized league across continuation cards, and
+retries temporary failures. Now a big day simply becomes two messages instead of a
+silent drop.
+
+## 10. The AI assistant (Discord bot)
+
+I wanted to ask questions from my phone. The catch: the Discord webhook that sends
+my alerts is one-way, it can't receive questions. To type a question in Discord and
+get an answer, Discord needs to reach an always-on service of mine.
+
+The solution is a small serverless function (a Cloudflare Worker, free tier) that
+Discord calls when I use a slash command. It does four things:
+
+1. **Verifies the request** really came from Discord using a cryptographic
+   signature check, with no external libraries.
+2. **Answers Discord's validation ping** so the endpoint can be registered.
+3. **Defers** its reply (Discord requires a response within three seconds, and
+   calling an AI model takes longer), then does the real work in the background.
+4. **Fetches my latest league data** from the repo and answers back in the channel.
+
+There are five commands:
+
+- **`/ask`** sends my question, plus a compact summary of my rosters and
+  projections, to an AI model through OpenRouter, and posts the answer.
+- **`/ranges`** lists my whole team's floor/median/ceiling for the week, computed
+  directly from the snapshot with no AI, so it can never drop a player or invent a
+  number.
+- **`/trade`** evaluates a trade, with multiple players per side (see the next
+  section).
+- **`/projections`** prints a player's week-by-week projected points for the rest
+  of the season, straight from the layered model, with byes flagged and a remaining
+  total.
+- **`/tradefinder`** takes a team to trade with and suggests deals that help both
+  sides (see the next section).
+
+Every player and team field uses Discord's **autocomplete**, so the options come
+from a live dropdown of my actual rosters and league teams. Because a completed
+pick replaces the whole field, the multi-player trade inputs use numbered slots
+(`give1`, `give2`, and so on) rather than one comma-separated box, which is what
+autocomplete supports cleanly. The AI model is swappable in a single command via
+`set-model.sh`, which edits the config and redeploys.
+
+## 11. Trade evaluation
+
+Judging a trade requires knowing about players on other people's teams, which the
+daily monitor didn't originally store. So the snapshot was extended to save every
+team's roster (this data was already being read to filter free agents, so it cost
+nothing extra), and the Monte Carlo ranges were extended to cover all of those
+players too.
+
+The `/trade` command finds the players anywhere in the league, computes each one's
+value over replacement, and gives a verdict on which side wins and by how much,
+plus a short AI take on the fit. The value is now based on the **rest-of-season
+projection** from the layered model (per-game projected points over a
+replacement-level player at that position), not a single week, because a trade is a
+rest-of-season decision. Replacement level is computed on the same rest-of-season
+basis from the free-agent pool, so the comparison stays apples-to-apples.
+
+Three things were added on top of the original one-for-one version:
+
+- **Multiple players per side.** Each side takes up to three players (`give1..give3`,
+  `get1..get3`), so 2-for-1 and 3-for-2 deals work. The verdict totals each side and
+  reports the net.
+- **Consulting on other managers' trades.** Optional `team_give` and `team_get`
+  fields name the two teams involved, so a trade between two other managers is
+  judged neutrally by team name ("favors Team A") instead of assuming one side is
+  mine, and both teams' positional depth is fed to the AI.
+- **A trade finder.** `/tradefinder` takes a partner team and proposes deals that
+  help both sides. It measures each team's weak spots (a thin starter at a position)
+  and its surplus depth, then pairs my depth at their weak spot against their depth
+  at mine, within a fair value band, and ranks by how much each lineup improves. It
+  proposes multi-player packages as well as one-for-ones, and the AI picks the best
+  couple to actually pitch.
+
+It stays honest about its limits: it judges value on paper and can't read the other
+manager's mind.
+
+## 12. Engineering practices
+
+- **Fail-safe everywhere.** Machine learning, odds, and the assistant each degrade
+  to a no-op if their data or dependency is missing, so the core monitor never
+  breaks.
+- **Secrets stay secret.** Every cookie, token, and key lives in encrypted GitHub
+  or Cloudflare secrets, never in the code.
+- **Tests and continuous integration.** A unit-test suite covers the tricky logic
+  (lineup-slot eligibility, the Discord message splitting, the outcome grading,
+  config parsing, and the leakage-safe feature prep) and runs automatically on
+  every push.
+- **No infrastructure to babysit.** GitHub Actions schedules the runs and stores
+  the data, and Cloudflare hosts the bot, all on free tiers.
+
+## 13. Problems we hit and how we fixed them
+
+- **ESPN cookies and multi-league setup.** Getting private-league access working
+  meant extracting account cookies from the browser; one pair covers all leagues
+  since they're tied to the account, not the league.
+- **Historical data gaps.** The NFL history source doesn't publish the current
+  season right away, which caused errors. Fixed by fetching season-by-season and
+  skipping any that aren't available yet.
+- **Discord message-size limit.** Described above: split into multiple messages.
+- **Illegal start/sit suggestion.** The tool once suggested benching my only tight
+  end for a wide receiver. Fixed by teaching it each starter's exact lineup slot and
+  who can legally fill it.
+- **The scheduler's delivery time.** Scheduled runs can be delayed, and the top of
+  the hour is the most congested slot, so the daily run was moved off the hour to
+  land closer to the target time.
+- **Trade data not present.** The bot couldn't see other teams until the snapshot
+  was extended to store all rosters and the monitor was re-run to refresh the data.
+- **No future-week projections from ESPN.** The API only returns the current week's
+  projection and a season average, which first showed up as flat, identical weekly
+  numbers. The fix was to stop asking ESPN for future weeks and build the layered
+  model instead.
+- **nflverse 404s on the newest seasons.** The weekly-stats source returned a 404
+  for the current and most recent season, which quietly emptied every matchup and
+  usage factor and flattened the projections. Fixed by walking back to the most
+  recent season that loads, with a `proj_meta` diagnostic in the snapshot so an
+  empty layer is visible rather than silent.
+- **ESPN moved the betting lines.** Odds disappeared from the scoreboard feed, so
+  the odds signal silently loaded zero teams. Fixed by reading each game's line from
+  its summary `pickcenter` endpoint instead.
+
+## 14. Honest limitations
+
+- The backtest validates the decision logic plus a reconstructed projection, not
+  ESPN's live projections, so it likely understates the live tool. Results are
+  always described as backtested, not guaranteed.
+- Football is high-variance, so no tool can call two closely matched players
+  reliably; that ceiling is real.
+- The trade evaluator judges paper value only.
+- The rest-of-season weekly projections are the tool's own estimates, not ESPN's.
+  ESPN does not expose a real future-week forecast, so the tool models one; the
+  far-out weeks in particular lean on the baseline and opponent because Vegas,
+  weather, and injury information only exist for the near term.
+- The matchup and usage factors depend on recent weekly NFL stats, which the free
+  data source does not always have for the current or most recent season. When that
+  happens the tool falls back to the most recent season that is published, so early
+  in a year those factors reflect last season's tendencies rather than this one.
+- The richest current-season usage signals aren't on free data feeds, which caps
+  how far the models can go without paying for data.
+
+## 15. Glossary
+
+- **Snapshot:** a saved picture of a league on a given day.
+- **Projection:** an estimate of how many points a player will score this week.
+- **Floor / median / ceiling:** a bad-case, typical, and great-case outcome.
+- **Value over replacement:** a player's value above a freely available player at
+  the same position, which lets positions be compared fairly.
+- **Monte Carlo simulation:** estimating a range of outcomes by running many random
+  trials.
+- **Calibration:** whether a predicted range is honest (an 80% range should contain
+  the real result about 80% of the time).
+- **Leakage:** accidentally using future information to judge a past decision, which
+  makes a model look better than it is; avoided here on purpose.
+- **Backtest:** replaying the logic on historical data to measure how well it would
+  have done.
+- **Implied team total:** how many points Vegas expects a team to score, derived
+  from the betting line.
+
+## 16. Setup and running it yourself
 
 ### 1. Find your ESPN league info
 
@@ -241,7 +585,7 @@ box to test your webhook end to end. It has permission to commit each day's snap
 back to the repo, and that saved history is what the next day's run compares
 against, so there's no database to set up.
 
-## Tuning
+### Tuning
 
 The thresholds that decide what's worth flagging live in ffmonitor/config.py: how
 many points a bench player has to beat a starter by, what counts as a weak
@@ -249,22 +593,3 @@ starting spot, when a free agent is "hot," and how lopsided a game has to be to
 matter. The machine-learning features are on by default in the workflow and
 degrade gracefully: if the history data is ever unavailable, the core monitor
 still runs.
-
-## How it's built
-
-The code is organized as a small Python package, ffmonitor, with clear pieces:
-config and secrets, a normalized player format so every league looks the same to
-the rest of the code, the ESPN client, snapshotting and day-over-day diffing, the
-analysis and alerting, the machine-learning modules (Monte Carlo, value over
-replacement, the "heating up" signal), the odds feed, the backtesting and
-model-quality harness (ffmonitor/eval), the live outcome logger that grades its
-own calls, and the question-answering assistant. The Discord bot lives in its own
-folder (discord-bot) as a Cloudflare Worker with the /ask, /ranges, and /trade
-commands. A test suite runs automatically on every push.
-
-## A note on honesty
-
-I was careful to keep the claims honest. The backtest only ever uses information
-that was available at decision time. The results are described as backtested, not
-as guarantees. And the live record grades itself with real outcomes, so over a
-season it speaks for itself.
