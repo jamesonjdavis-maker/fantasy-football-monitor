@@ -9,7 +9,7 @@ compatibility_date = "2024-09-23"
 [vars]
 DISCORD_APP_ID = "1549898129413898320"
 DISCORD_PUBLIC_KEY = "256c320e80d4237566122da70ee3b636f4628e9ee4f86979135c20e9e9bdf896"
-OPENROUTER_MODEL = "openai/gpt-4o-mini"   # or a free model id
+OPENROUTER_MODEL = "anthropic/claude-haiku-5.5"
 GITHUB_REPO = "jamesonjdavis-maker/fantasy-football-monitor"
 
 # Secrets are NOT stored here. Set them once with:
