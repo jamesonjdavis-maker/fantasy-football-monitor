@@ -300,17 +300,23 @@ function byPositionValued(players, repl) {
   return by;
 }
 
-// Need score per position: >0 means thin (fewer than the starting requirement,
-// or exactly at it with no backup). Surplus = players beyond the requirement.
+// Each team by position: the value of its weakest starter (the bar a new player
+// must clear to be an upgrade) and its tradeable bench depth beyond the starters.
 function teamShape(by) {
-  const need = {}, surplus = {};
+  const weakestStarter = {}, bench = {};
   for (const pos of ["QB", "RB", "WR", "TE"]) {
     const list = by[pos] || [];
     const req = _REQUIRED[pos];
-    need[pos] = Math.max(0, req + 0.5 - list.length);  // 0.5 = thin starter, no backup
-    surplus[pos] = list.slice(req);                    // tradeable depth
+    const starters = list.slice(0, req);
+    weakestStarter[pos] = starters.length ? starters[starters.length - 1].v : -5;  // empty slot = easy upgrade
+    bench[pos] = list.slice(req);  // depth they could deal
   }
-  return { need, surplus };
+  return { weakestStarter, bench };
+}
+
+// Positions where a team's weakest starter is weak enough to want an upgrade.
+function weakSpots(shape) {
+  return ["QB", "RB", "WR", "TE"].filter((pos) => shape.weakestStarter[pos] <= 2);
 }
 
 function findLeagueForTeam(snap, leagueFilter, partnerQuery) {
@@ -341,36 +347,42 @@ const _POS = ["QB", "RB", "WR", "TE"];
 const sumV = (bundle) => +bundle.reduce((a, b) => a + b.v, 0).toFixed(1);
 const posSet = (bundle) => new Set(bundle.map((x) => x.pos));
 
-// Build mutually useful packages: give 1-3 of my surplus for 1-2 of their
-// surplus, value-fair, where each side gets a position it needs. Covers 1-for-1
-// up through 3-for-2.
+// How much a bundle would improve the receiving team's lineup: for each position
+// it brings, how far its best piece clears that team's weakest starter there.
+function lineupGain(bundle, receivingShape) {
+  const bestByPos = {};
+  for (const x of bundle) bestByPos[x.pos] = Math.max(bestByPos[x.pos] ?? -Infinity, x.v);
+  let g = 0;
+  for (const pos of Object.keys(bestByPos)) g += Math.max(0, bestByPos[pos] - receivingShape.weakestStarter[pos]);
+  return +g.toFixed(1);
+}
+
+// Build mutually useful packages: give 1-3 of my bench depth for 1-2 of theirs,
+// value-fair, where BOTH lineups get a real upgrade. Covers 1-for-1 up to 3-for-2.
 function buildTradeIdeas(mineShape, theirsShape) {
   const pool = (shape) => {
     const out = [];
-    for (const pos of _POS) for (const x of shape.surplus[pos] || []) out.push({ p: x.p, v: x.v, pos });
+    for (const pos of _POS) for (const x of shape.bench[pos] || []) out.push({ p: x.p, v: x.v, pos });
     return out.sort((a, b) => b.v - a.v).slice(0, 6);  // top depth pieces, bounded
   };
   const mine = pool(mineShape), theirs = pool(theirsShape);
-  const myNeeds = new Set(_POS.filter((x) => mineShape.need[x] > 0));
-  const theirNeeds = new Set(_POS.filter((x) => theirsShape.need[x] > 0));
 
   const giveBundles = subsets(mine, 3);  // send up to 3
   const getBundles = subsets(theirs, 2); // receive up to 2
   const ideas = [];
   for (const get of getBundles) {
-    if (![...posSet(get)].some((p) => myNeeds.has(p))) continue;   // must help me
+    const myGain = lineupGain(get, mineShape);
+    if (myGain < 0.5) continue;                 // the deal must upgrade MY lineup
     const gt = sumV(get);
     for (const give of giveBundles) {
-      if (![...posSet(give)].some((p) => theirNeeds.has(p))) continue;  // must help them
+      const theirGain = lineupGain(give, theirsShape);
+      if (theirGain < 0.5) continue;            // and THEIRS
       const gv = sumV(give);
       const gap = Math.abs(gt - gv);
       const band = Math.max(4, 0.25 * Math.max(Math.abs(gt), Math.abs(gv), 1));
       if (gap > band) continue;
-      const needFill =
-        [...posSet(get)].filter((p) => myNeeds.has(p)).length +
-        [...posSet(give)].filter((p) => theirNeeds.has(p)).length;
       const size = give.length + get.length;
-      const score = needFill * 2 - gap * 0.3 - size * 0.4 + (gv + gt) * 0.03;
+      const score = myGain + theirGain - gap * 0.35 - size * 0.4;
       ideas.push({ give, get, gv, rv: gt, score });
     }
   }
@@ -422,8 +434,8 @@ async function tradeFinderLater(interaction, partnerQuery, league, myTeamQuery, 
     const ideas = buildTradeIdeas(mineShape, theirsShape);
 
     const lines = [`🔎 **Trade ideas: ${myName} ↔ ${partner}** (${leagueName})`];
-    const needStr = (shape) => ["QB", "RB", "WR", "TE"].filter((x) => shape.need[x] > 0).join(", ") || "none pressing";
-    lines.push(`Your needs: ${needStr(mineShape)} · ${partner}'s needs: ${needStr(theirsShape)}`);
+    const needStr = (shape) => weakSpots(shape).join(", ") || "none pressing";
+    lines.push(`Your weak spots: ${needStr(mineShape)} · ${partner}'s weak spots: ${needStr(theirsShape)}`);
     if (!ideas.length) {
       lines.push("\nNo clean value-fair swaps where you each fill a need — your rosters may not line up, or needs overlap. Try a different partner, or use `/trade` to test a specific idea.");
       text = lines.join("\n");
@@ -449,9 +461,9 @@ async function tradeFinderCommentary(myName, partner, ideas, mineShape, theirsSh
   const list = ideas
     .map((i, n) => `${n + 1}) give ${bundleStr(i.give)} for ${bundleStr(i.get)}`)
     .join("; ");
-  const needs = (s) => ["QB", "RB", "WR", "TE"].filter((x) => s.need[x] > 0).join("/") || "none";
+  const needs = (s) => weakSpots(s).join("/") || "none";
   const facts =
-    `My team: ${myName} (needs ${needs(mineShape)}). Partner: ${partner} (needs ${needs(theirsShape)}). ` +
+    `My team: ${myName} (weak at ${needs(mineShape)}). Partner: ${partner} (weak at ${needs(theirsShape)}). ` +
     `Candidate swaps by rest-of-season value over replacement: ${list}.`;
   return await askOpenRouter(
     "You are a fantasy trade negotiator. From these candidate swaps, recommend the 2 best " +
