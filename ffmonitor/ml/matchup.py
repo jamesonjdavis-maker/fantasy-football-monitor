@@ -116,9 +116,8 @@ def _vegas_factor(odds_week: dict | None, team: str | None, pos: str) -> float:
     return max(0.80, min(1.25, factor))
 
 
-@lru_cache(maxsize=8)
-def _dvp_factors(year: int, through_week: int) -> dict[tuple[str, str], float]:
-    """{(defense, position): factor} where factor = points that defense allows
+def _dvp_from_season(year: int, through_week: int) -> dict[tuple[str, str], float]:
+    """{(defense, position): factor} for one season: points that defense allows
     to the position per game, divided by the league average for that position."""
     try:
         import pandas as pd
@@ -153,6 +152,30 @@ def _dvp_factors(year: int, through_week: int) -> dict[tuple[str, str], float]:
         return factors
     except Exception:
         return {}
+
+
+@lru_cache(maxsize=8)
+def _dvp_factors(year: int, through_week: int) -> dict[tuple[str, str], float]:
+    """Defense-vs-position factors. Uses the current season once it has enough
+    coverage; early in the year (sparse/unpublished data) it falls back to last
+    season's full-year tendencies so opponent strength still varies week to week —
+    the same prior real projection systems lean on before the new season settles."""
+    current = _dvp_from_season(year, through_week)
+    if len(current) >= 32:  # ~half the 64 (team x position) cells present
+        return current
+    prior = _dvp_from_season(year - 1, 18)
+    return prior or current
+
+
+def coverage(year: int, through_week: int) -> dict:
+    """How much of each data layer actually loaded — for diagnosing flat output."""
+    cur = _dvp_from_season(year, through_week)
+    return {
+        "dvp": len(_dvp_factors(year, through_week)),
+        "dvp_current_season": len(cur),
+        "dvp_source": "current" if len(cur) >= 32 else "prior-season",
+        "schedule_teams": len(_schedule_map(year)),
+    }
 
 
 def build_ros(

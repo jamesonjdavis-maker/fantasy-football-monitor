@@ -66,6 +66,25 @@ def _player_ros(obj: Any, week: int, weekly: dict[str, dict[str, float]] | None)
     return _ros_projections(obj, week)
 
 
+def _proj_meta(week: int, year: int) -> dict:
+    """Small diagnostic of which projection layers actually loaded their data."""
+    through = max(1, week - 1)
+    meta: dict = {"week": week, "year": year}
+    try:
+        from ..ml import matchup
+        meta.update(matchup.coverage(year, through))
+    except Exception as exc:
+        meta["matchup_error"] = str(exc)[:120]
+    try:
+        from ..ml import playerfactors
+        pf = playerfactors.build_player_factors(year, through)
+        meta["player_factors"] = len(pf.get("players", {}))
+        meta["team_factors"] = len(pf.get("teams", {}))
+    except Exception as exc:
+        meta["playerfactors_error"] = str(exc)[:120]
+    return meta
+
+
 def _baseline_pergame(p: dict) -> float | None:
     """A player's per-game scoring baseline (volume x efficiency, already baked
     into fantasy points), weighted toward recent form so a changed role or hot/
@@ -351,6 +370,7 @@ def build_league_snapshot(
     _apply_ros_projections(
         [roster, *league_rosters.values(), free_agents], week, year
     )
+    proj_meta = _proj_meta(week, year)
 
     return {
         **base,
@@ -366,4 +386,5 @@ def build_league_snapshot(
         "roster": roster,
         "free_agents": free_agents,
         "league_rosters": league_rosters,
+        "proj_meta": proj_meta,
     }
