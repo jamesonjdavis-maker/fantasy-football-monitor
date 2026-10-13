@@ -82,15 +82,16 @@ def _proj_meta(week: int, year: int) -> dict:
         meta["team_factors"] = len(pf.get("teams", {}))
     except Exception as exc:
         meta["playerfactors_error"] = str(exc)[:120]
-    # Probe the underlying weekly-stats load directly so we can see WHY it's empty.
+    # Probe import_weekly_data DIRECTLY so we see the real per-year exception
+    # (the ml loader swallows it behind a generic "no weekly data" message).
     for label, yr in (("current", year), ("prior", year - 1)):
         try:
-            from ..ml.data import _weekly_raw
-            df = _weekly_raw((yr,))
+            import nfl_data_py as nfl
+            df = nfl.import_weekly_data([yr])
             meta[f"weekly_rows_{label}"] = int(len(df))
             meta[f"weekly_has_opp_{label}"] = "opponent_team" in df.columns
         except Exception as exc:
-            meta[f"weekly_error_{label}"] = f"{type(exc).__name__}: {str(exc)[:160]}"
+            meta[f"weekly_error_{label}"] = f"{type(exc).__name__}: {str(exc)[:200]}"
     return meta
 
 
