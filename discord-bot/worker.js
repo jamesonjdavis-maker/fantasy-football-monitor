@@ -267,7 +267,7 @@ async function tradeLater(interaction, give, get, league, teamGive, teamGet, env
       } else {
         // Send the card first, then the AI take as a separate follow-up message,
         // so the two never share Discord's 2000-char limit and get truncated.
-        const card = tradeVerdict(g, r, teamGive, teamGet, tradeTeamShapes(snap, g, r, teamGive, teamGet));
+        const card = tradeVerdict(g, r, teamGive, teamGet, tradeTeamImpact(snap, g, r, teamGive, teamGet));
         await editReply(interaction, env, card);
         const context = rosterContext(snap, g, r, teamGive, teamGet);
         const note = await tradeCommentary(g, r, context, env).catch(() => "");
@@ -617,44 +617,94 @@ function rosterContext(snap, g, r, teamGive, teamGet) {
   return ctx;
 }
 
-// Both teams' roster shapes (weakest-starter bars) so a trade can be graded on
-// whether the incoming players upgrade each team, not just raw value.
-function tradeTeamShapes(snap, g, r, teamGive, teamGet) {
+// The league's starting-lineup requirements (QB/RB/WR/TE + FLEX/SUPERFLEX).
+function startingSlots(plat) {
+  const s = (plat.league_settings && plat.league_settings.starters) || {};
+  const slots = {
+    QB: s.QB || 0, RB: s.RB || 0, WR: s.WR || 0, TE: s.TE || 0,
+    FLEX: (s.FLEX || 0) + (s["RB/WR/TE"] || 0) + (s["WR/RB/TE"] || 0),
+    SUPERFLEX: (s.SUPERFLEX || 0) + (s.OP || 0) + (s["QB/RB/WR/TE"] || 0),
+  };
+  if (!slots.QB && !slots.RB && !slots.WR && !slots.TE)
+    return { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, SUPERFLEX: 0 };
+  return slots;
+}
+
+// Best possible starting-lineup total from a set of {pos, pts} players: fill
+// each dedicated slot with the best at that position, then FLEX/SUPERFLEX with
+// the best remaining eligible. Points a bench player can't crack don't count.
+function optimalStartingPoints(players, slots) {
+  const by = { QB: [], RB: [], WR: [], TE: [] };
+  for (const p of players) if (by[p.pos]) by[p.pos].push(p.pts);
+  for (const k in by) by[k].sort((a, b) => b - a);
+  const used = { QB: 0, RB: 0, WR: 0, TE: 0 };
+  let total = 0;
+  for (const pos of ["QB", "RB", "WR", "TE"])
+    for (let i = 0; i < (slots[pos] || 0); i++)
+      if (used[pos] < by[pos].length) total += by[pos][used[pos]++];
+  const fill = (positions, n) => {
+    for (let i = 0; i < (n || 0); i++) {
+      let best = -Infinity, bp = null;
+      for (const pos of positions)
+        if (used[pos] < by[pos].length && by[pos][used[pos]] > best) { best = by[pos][used[pos]]; bp = pos; }
+      if (bp) { total += best; used[bp]++; }
+    }
+  };
+  fill(["RB", "WR", "TE"], slots.FLEX);
+  fill(["QB", "RB", "WR", "TE"], slots.SUPERFLEX);
+  return +total.toFixed(1);
+}
+
+// Change to a team's best starting lineup if it ships `giveNames` and adds
+// `getPlayers` ([{pos, pts}]). This is the real weekly impact: depth that never
+// starts barely moves it, and landing one stud that bumps a weak starter does.
+function startingDelta(roster, giveNames, getPlayers, slots) {
+  const toPts = (p) => ({ pos: p.position, pts: tradeBasis(p) || 0 });
+  const before = (roster || []).map(toPts);
+  const after = (roster || [])
+    .filter((p) => !giveNames.has(normName(p.name)))
+    .map(toPts)
+    .concat(getPlayers);
+  return +(optimalStartingPoints(after, slots) - optimalStartingPoints(before, slots)).toFixed(1);
+}
+
+// Each team's starting-lineup point change from the trade (not zero-sum: each
+// team optimizes its own lineup, so both can gain). Null if we can't resolve
+// both rosters in a single league.
+function tradeTeamImpact(snap, g, r, teamGive, teamGet) {
   const leagues = [...new Set([...g.found, ...r.found].map((f) => f.league))];
   if (leagues.length !== 1) return null;
   const plat = Object.values(snap.platforms || {}).find(
     (s) => s && s.enabled && (s.league_name || s.label) === leagues[0]
   );
   if (!plat) return null;
-  const repl = seasonReplacement(plat);
+  const slots = startingSlots(plat);
   const giveRoster = rosterOfTeam(plat, teamGive || plat.team_name);
   let getRoster = teamGet ? rosterOfTeam(plat, teamGet) : null;
   if (!teamGet) {
     const partners = [...new Set(r.found.map((f) => f.owner).filter((o) => o && o !== "free agent" && o !== plat.team_name))];
     getRoster = partners.flatMap((t) => (plat.league_rosters || {})[t] || []);
   }
+  const asPts = (side) => side.found.map((f) => ({ pos: f.p.position, pts: tradeBasis(f.p) || 0 }));
+  const giveNames = new Set(g.found.map((f) => normName(f.p.name)));
+  const getNames = new Set(r.found.map((f) => normName(f.p.name)));
   return {
-    giveShape: giveRoster && giveRoster.length ? teamShape(byPositionValued(giveRoster, repl)) : null,
-    getShape: getRoster && getRoster.length ? teamShape(byPositionValued(getRoster, repl)) : null,
+    // The give side ships g and receives r; the get side the reverse.
+    giveDelta: giveRoster && giveRoster.length ? startingDelta(giveRoster, giveNames, asPts(r), slots) : null,
+    getDelta: getRoster && getRoster.length ? startingDelta(getRoster, getNames, asPts(g), slots) : null,
   };
 }
 
-// Letter grade for one team's side of a trade. `net` is its value-over-
-// replacement swing (what it receives minus what it gives); `gain` is how much
-// the incoming players upgrade its weakest starters (a need-fill softens a value
-// loss and sweetens a value win, so a smart needs-based swap can grade well for
-// both teams even when value is close to even).
-function tradeGrade(net, gain) {
-  const score = net + 0.6 * (gain || 0);
+// Letter grade from a team's starting-lineup point change (per week).
+function tradeGrade(delta) {
   let grade, word;
-  if (score >= 7) [grade, word] = ["A", "big win"];
-  else if (score >= 4) [grade, word] = ["A-", "clear win"];
-  else if (score >= 2) [grade, word] = ["B", "good"];
-  else if (score >= 0.8) [grade, word] = ["B-", "slight win"];
-  else if (score > -0.8) [grade, word] = ["C", "fair / about even"];
-  else if (score > -2) [grade, word] = ["C-", "slight loss"];
-  else if (score > -4) [grade, word] = ["D", "poor"];
-  else [grade, word] = ["F", "big loss"];
+  if (delta >= 4) [grade, word] = ["A", "big upgrade"];
+  else if (delta >= 2) [grade, word] = ["B", "clear upgrade"];
+  else if (delta >= 0.7) [grade, word] = ["B-", "slight upgrade"];
+  else if (delta > -0.7) [grade, word] = ["C", "about even"];
+  else if (delta > -2) [grade, word] = ["C-", "slight downgrade"];
+  else if (delta > -4) [grade, word] = ["D", "downgrade"];
+  else [grade, word] = ["F", "big downgrade"];
   return { grade, word };
 }
 
@@ -812,7 +862,7 @@ function sideLines(label, side) {
   return lines;
 }
 
-function tradeVerdict(g, r, teamGive, teamGet, shapes) {
+function tradeVerdict(g, r, teamGive, teamGet, impact) {
   const lines = ["🔁 **Trade check**"];
   const leagues = new Set([...g.found, ...r.found].map((f) => f.league));
   if (leagues.size === 1) lines[0] += ` (${[...leagues][0]})`;
@@ -836,37 +886,29 @@ function tradeVerdict(g, r, teamGive, teamGet, shapes) {
     lines.push("⚠️ Some players weren't found, so the verdict is incomplete.");
 
   if (gt.hasValue && rt.hasValue) {
-    // The give side sends `g` and receives `r`, so its net value is rt - gt.
-    const diff = +(rt.value - gt.value).toFixed(1);
-    const thirdParty = teamGive || teamGet;
-    const giveSide = teamGive || "you";
-    const getSide = teamGet || "the other side";
-    if (Math.abs(diff) < 1) {
-      lines.push("**Verdict:** roughly even on value.");
-    } else if (diff > 0) {
-      lines.push(`**Verdict:** favors ${giveSide} by about ${diff} points of value-over-replacement.`);
-    } else if (thirdParty) {
-      lines.push(`**Verdict:** favors ${getSide} by about ${Math.abs(diff)} points of value-over-replacement.`);
-    } else {
-      lines.push(`**Verdict:** you'd give up about ${Math.abs(diff)} points of value-over-replacement.`);
-    }
-
-    // Per-team grade: value swing + whether the incoming players fill a weak spot.
+    const diff = +(rt.value - gt.value).toFixed(1);  // raw value swing (give side net)
     const giveName = teamGive || "You";
     const getName = teamGet || "The other side";
-    const giveIncoming = r.found.map((f) => ({ v: valueOf(f) || 0, pos: f.p.position }));
-    const getIncoming = g.found.map((f) => ({ v: valueOf(f) || 0, pos: f.p.position }));
-    const giveGain = shapes && shapes.giveShape ? lineupGain(giveIncoming, shapes.giveShape) : 0;
-    const getGain = shapes && shapes.getShape ? lineupGain(getIncoming, shapes.getShape) : 0;
-    const gGrade = tradeGrade(diff, giveGain);          // give side's net is rt - gt = diff
-    const rGrade = tradeGrade(-diff, getGain);
-    const fills = (gain) => (gain >= 1 ? ", fills a need" : "");
-    lines.push("");
-    lines.push("📊 **Grades:**");
-    lines.push(`• ${giveName}: **${gGrade.grade}** (${gGrade.word}) — net ${diff > 0 ? "+" : ""}${diff} value${fills(giveGain)}`);
-    lines.push(`• ${getName}: **${rGrade.grade}** (${rGrade.word}) — net ${-diff > 0 ? "+" : ""}${+(-diff).toFixed(1)} value${fills(getGain)}`);
+    const sign = (x) => `${x > 0 ? "+" : ""}${x}`;
 
-    lines.push("_Value = projected rest-of-season points per game (ESPN's forward outlook, so it already reflects expected role and injuries) minus a replacement-level player at that position. Grades also weigh whether the incoming players fill a weak starting spot. The human side of the deal is still your call._");
+    // Grade on the change to each team's actual STARTING lineup (what matters:
+    // bench depth you wouldn't play barely counts), not the zero-sum value swing.
+    const haveImpact = impact && impact.giveDelta != null && impact.getDelta != null;
+    const gDelta = haveImpact ? impact.giveDelta : diff;
+    const rDelta = haveImpact ? impact.getDelta : -diff;
+    const gGrade = tradeGrade(gDelta), rGrade = tradeGrade(rDelta);
+
+    lines.push("📊 **Grades — change to each team's starting lineup:**");
+    lines.push(`• ${giveName}: **${gGrade.grade}** (${gGrade.word})${haveImpact ? ` — starters ${sign(gDelta)} pts/wk` : ""}`);
+    lines.push(`• ${getName}: **${rGrade.grade}** (${rGrade.word})${haveImpact ? ` — starters ${sign(rDelta)} pts/wk` : ""}`);
+    lines.push("");
+
+    if (haveImpact) {
+      const favored = diff >= 0 ? giveName : getName;
+      lines.push(`_Graded on each team's best starting lineup, so bench depth you wouldn't start barely counts and landing one player who upgrades a starter does. On raw value across all players (over replacement) the deal favors ${favored} by ${Math.abs(diff)}, but the lineup you actually start is what matters. The human side is still your call._`);
+    } else {
+      lines.push("_Graded on value over replacement (couldn't read full rosters to grade the starting lineup here). Projections are rest-of-season points per game. The human side is still your call._");
+    }
   }
   return lines.join("\n");
 }
