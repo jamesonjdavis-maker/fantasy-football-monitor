@@ -338,6 +338,7 @@ function projectionLines(hit) {
   }
   const avg = n ? +(sum / n).toFixed(1) : 0;
   lines.push(`—\nRemaining total: ${+sum.toFixed(1)} over ${n} game${n === 1 ? "" : "s"} (avg ${avg}/gm)`);
+  lines.push("_Matchup-adjusted estimate (per-game baseline × opponent defense vs. position); not an official ESPN projection._");
   let out = lines.join("\n");
   if (out.length > 1900) out = out.slice(0, 1880) + "\n…(truncated)";
   return out;
