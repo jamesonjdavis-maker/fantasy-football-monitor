@@ -267,10 +267,11 @@ async function tradeLater(interaction, give, get, league, teamGive, teamGet, env
       } else {
         // Send the card first, then the AI take as a separate follow-up message,
         // so the two never share Discord's 2000-char limit and get truncated.
-        const card = tradeVerdict(g, r, teamGive, teamGet, tradeTeamImpact(snap, g, r, teamGive, teamGet));
+        const impact = tradeTeamImpact(snap, g, r, teamGive, teamGet);
+        const card = tradeVerdict(g, r, teamGive, teamGet, impact);
         await editReply(interaction, env, card);
         const context = rosterContext(snap, g, r, teamGive, teamGet);
-        const note = await tradeCommentary(g, r, context, env).catch(() => "");
+        const note = await tradeCommentary(g, r, context, env, teamGive, teamGet, impact).catch(() => "");
         if (note) await sendFollowup(interaction, env, `💬 ${note}`);
         return;
       }
@@ -945,26 +946,46 @@ function mentionsAllPlayers(note, players) {
   });
 }
 
-async function tradeCommentary(g, r, context, env) {
+// A plain-text summary of the computed grades, so the AI take agrees with the
+// deterministic card instead of inventing its own opposite verdict.
+function gradeSummaryText(g, r, teamGive, teamGet, impact) {
+  const gt = sideTotals(g.found), rt = sideTotals(r.found);
+  if (!gt.hasValue || !rt.hasValue) return "";
+  const diff = +(rt.value - gt.value).toFixed(1);
+  const haveImpact = impact && impact.give && impact.get;
+  const giveName = teamGive || "the give side (you)";
+  const getName = teamGet || "the get side (the other team)";
+  const gAvg = haveImpact ? impact.give.avg : diff;
+  const rAvg = haveImpact ? impact.get.avg : -diff;
+  const gGrade = tradeGrade(gAvg), rGrade = tradeGrade(rAvg);
+  const s = (x) => `${x > 0 ? "+" : ""}${x}`;
+  return `COMPUTED GRADES (change to each team's weekly STARTING lineup; positive = the trade HELPS that team): ` +
+    `${giveName} = ${gGrade.grade} (${gGrade.word}, ${s(gAvg)} starting pts/week); ` +
+    `${getName} = ${rGrade.grade} (${rGrade.word}, ${s(rAvg)} starting pts/week).`;
+}
+
+async function tradeCommentary(g, r, context, env, teamGive, teamGet, impact) {
   if (!env.OPENROUTER_API_KEY || (!g.found.length && !r.found.length)) return "";
   const desc = (f) => `${f.p.name} (${f.p.position}, value ${valueOf(f)}, ${rangeStr(f.p)})`;
   const giveList = g.found.map(desc).join("; ") || "nobody";
   const getList = r.found.map(desc).join("; ") || "nobody";
   const all = [...g.found, ...r.found];
   const total = all.length;
+  const grades = gradeSummaryText(g, r, teamGive, teamGet, impact);
   const facts =
     `GIVE side (${g.found.length} player${g.found.length === 1 ? "" : "s"}): ${giveList}. ` +
     `GET side (${r.found.length} player${r.found.length === 1 ? "" : "s"}): ${getList}. ` +
-    (context || "");
+    (grades ? grades + " " : "") + (context || "");
   const length = total <= 2 ? "two tight sentences" : "three tight sentences (about 70 words max)";
   const ask = (stern) => askOpenRouter(
     (stern ? "IMPORTANT: your previous answer left out a player. " : "") +
-    `Give a concise, optimized take on this multi-player fantasy trade for the rest of the season, in ${length}. ` +
+    `Give a concise take on this multi-player fantasy trade for the rest of the season, in ${length}. ` +
     `There are ${g.found.length} player(s) given and ${r.found.length} received — you MUST name EVERY ` +
-    "one of them by name and account for each; do not omit anyone. The values shown are projected " +
-    "rest-of-season points per game. Weigh total value, roster depth, and positional need (does it fill " +
-    "a hole or create one?). Use the roster-by-position info if given. If two teams are named, judge it " +
-    "neutrally for both sides by name and don't assume either team is the reader's.",
+    "one of them by name and account for each; do not omit anyone. " +
+    "The COMPUTED GRADES in the data are authoritative: your take MUST agree with them. A positive grade " +
+    "means the trade HELPS that team's starting lineup, so never call it a loss, a bloat move, or 'weaker' " +
+    "for a team the grades say gains; a negative grade means it hurts them. Judge by the starting lineup " +
+    "(who actually plays), not raw roster counts. Explain, in plain terms, why each team earns its grade.",
     facts, env
   );
   let note = await ask(false);
