@@ -81,24 +81,38 @@ def _baseline_pergame(p: dict) -> float | None:
     return p.get("proj_points")
 
 
+# How much a known injury status discounts THIS week's projection (status only
+# speaks to the current week; we don't guess future availability).
+_INJURY_WEEK_FACTOR = {
+    "OUT": 0.0, "IR": 0.0, "SUSPENDED": 0.0, "PUP": 0.0,
+    "DOUBTFUL": 0.35, "QUESTIONABLE": 0.9,
+}
+
+
 def _apply_ros_projections(player_groups: list[list[dict]], week: int, year: int) -> None:
     """Overwrite each player's ros_proj with a matchup-adjusted weekly line: a
-    recency-weighted per-game baseline scaled by opponent defense-vs-position and
-    the Vegas game environment, byes = 0. Best-effort: if nflverse data can't
-    load, players keep their fallback."""
+    recency-weighted per-game baseline scaled by opponent defense-vs-position, the
+    Vegas game environment, and weather, byes = 0. A known injury status discounts
+    the current week. Best-effort: if data can't load, players keep their
+    fallback."""
     try:
         from ..ml import matchup
     except Exception:
         return
     through = max(1, week - 1)  # defense stats through completed weeks only
+    wk = str(week)
     for group in player_groups:
         for p in group:
             ros = matchup.build_ros(
                 _baseline_pergame(p), p.get("position"), p.get("pro_team"),
                 week, _SEASON_END_WEEK, year, through,
             )
-            if ros:
-                p["ros_proj"] = ros
+            if not ros:
+                continue
+            mult = _INJURY_WEEK_FACTOR.get(p.get("injury_status"))
+            if mult is not None and wk in ros:
+                ros[wk] = round(ros[wk] * mult, 2)
+            p["ros_proj"] = ros
 
 
 def _box_player(bp: Any, week: int, weekly: dict[str, dict[str, float]] | None = None) -> dict[str, Any]:

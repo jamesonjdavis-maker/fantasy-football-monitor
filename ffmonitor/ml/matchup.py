@@ -35,14 +35,15 @@ def _norm_team(team: str | None) -> str | None:
 
 
 @lru_cache(maxsize=4)
-def _schedule_map(year: int) -> dict[str, dict[int, str]]:
-    """{team: {week: opponent}} for the regular season (missing week == bye)."""
+def _schedule_map(year: int) -> dict[str, dict[int, dict]]:
+    """{team: {week: {opp, venue, date}}} for the regular season. `venue` is the
+    home team (whose stadium hosts the game); a missing week is a bye."""
     try:
         import nfl_data_py as nfl
         sched = nfl.import_schedules([year])
     except Exception:
         return {}
-    out: dict[str, dict[int, str]] = {}
+    out: dict[str, dict[int, dict]] = {}
     try:
         for _, g in sched.iterrows():
             if "game_type" in sched.columns and g.get("game_type") != "REG":
@@ -52,9 +53,10 @@ def _schedule_map(year: int) -> dict[str, dict[int, str]]:
             except (TypeError, ValueError):
                 continue
             home, away = _norm_team(g.get("home_team")), _norm_team(g.get("away_team"))
+            date = str(g.get("gameday") or "")
             if home and away:
-                out.setdefault(home, {})[wk] = away
-                out.setdefault(away, {})[wk] = home
+                out.setdefault(home, {})[wk] = {"opp": away, "venue": home, "date": date}
+                out.setdefault(away, {})[wk] = {"opp": home, "venue": home, "date": date}
     except Exception:
         return {}
     return out
@@ -177,15 +179,20 @@ def build_ros(
     pos = str(position).upper()
     factors = _dvp_factors(year, through_week)
     odds = _weekly_odds(year, start_week, end_week)
+    try:
+        from . import weather
+    except Exception:
+        weather = None
     out: dict[str, float] = {}
     for w in range(start_week, end_week + 1):
-        opp = team_games.get(w)
-        if opp is None:
+        game = team_games.get(w)
+        if not game:
             out[str(w)] = 0.0  # bye week
             continue
-        dvp = factors.get((opp, pos), 1.0)              # opponent defense
-        vegas = _vegas_factor(odds.get(w), team_n, pos)  # scoring env + game script
+        dvp = factors.get((game["opp"], pos), 1.0)          # opponent defense
+        vegas = _vegas_factor(odds.get(w), team_n, pos)      # scoring env + game script
+        wx = weather.weather_factor(game.get("venue"), game.get("date"), pos) if weather else 1.0
         # Keep the combined swing within a believable band.
-        combined = max(0.60, min(1.55, dvp * vegas))
+        combined = max(0.55, min(1.55, dvp * vegas * wx))
         out[str(w)] = round(base * combined, 2)
     return out or None
