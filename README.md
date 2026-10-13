@@ -392,8 +392,8 @@ There are five commands:
 - **`/ranges`** lists my whole team's floor/median/ceiling for the week, computed
   directly from the snapshot with no AI, so it can never drop a player or invent a
   number.
-- **`/trade`** evaluates a trade, with multiple players per side (see the next
-  section).
+- **`/trade`** evaluates a trade, with multiple players per side, and grades each
+  team on how its actual starting lineup changes week by week (see the next section).
 - **`/projections`** prints a player's week-by-week projected points for the rest
   of the season, straight from the layered model, with byes flagged and a remaining
   total.
@@ -423,15 +423,16 @@ replacement-level player at that position), not a single week, because a trade i
 rest-of-season decision. Replacement level is computed on the same rest-of-season
 basis from the free-agent pool, so the comparison stays apples-to-apples.
 
-Three things were added on top of the original one-for-one version:
+Several things were added on top of the original one-for-one version:
 
 - **Multiple players per side.** Each side takes up to three players (`give1..give3`,
-  `get1..get3`), so 2-for-1 and 3-for-2 deals work. The verdict totals each side and
-  reports the net.
+  `get1..get3`), so 2-for-1 and 3-for-2 deals work. The card labels each side clearly
+  ("you send away" / "you receive", or the two team names) and shows a subtotal under
+  each so it's obvious which players the number refers to.
 - **Consulting on other managers' trades.** Optional `team_give` and `team_get`
   fields name the two teams involved, so a trade between two other managers is
-  judged neutrally by team name ("favors Team A") instead of assuming one side is
-  mine, and both teams' positional depth is fed to the AI.
+  judged neutrally by team name instead of assuming one side is mine, and both teams'
+  rosters are used to grade it.
 - **A trade finder.** `/tradefinder` takes a partner team and proposes deals that
   help both sides. It measures each team's weak spots (a thin starter at a position)
   and its surplus depth, then pairs my depth at their weak spot against their depth
@@ -439,8 +440,55 @@ Three things were added on top of the original one-for-one version:
   proposes multi-player packages as well as one-for-ones, and the AI picks the best
   couple to actually pitch.
 
-It stays honest about its limits: it judges value on paper and can't read the other
-manager's mind.
+### Grading a trade by what you actually start
+
+The interesting part is how a trade is graded. The obvious measure, total value sent
+versus received, is misleading for two reasons. First, it is zero-sum: whatever value
+one side gains, the other loses by the same amount, so the two grades would always be
+mirror images. Second, and more important, you only start a fixed lineup, so a bench
+player you would never play is worth almost nothing to your weekly score, and trading
+three role players for one star starter can be a clear win even though the raw point
+totals say you came out behind.
+
+So each team is graded on the change to the lineup it would actually start, computed
+week by week:
+
+- For every remaining week, the tool rebuilds that team's best legal starting lineup
+  (QB, RB, WR, TE, and FLEX, from the league's real settings) using that week's
+  projection, and sums the starters.
+- It does this for the roster before the trade and after it, and takes the difference.
+- A player on a bye or injured that week counts as zero, so he can't prop up the
+  lineup in a week he wouldn't play. Depth that never cracks the starting lineup
+  barely moves the grade; landing one player who bumps a weak starter moves it a lot.
+
+The grade is the average of those weekly changes, on a plain A-to-F scale, and the
+card also reports the total points gained or lost over the rest of the season and
+flags the roughest single week (usually a bye or injury collision). Because each team
+optimizes its own lineup, the grades are **not** mirror images: a smart deal where
+each side trades from a strength into a need can grade well for both, while a lopsided
+one shows the real gap.
+
+The underlying value still uses the rest-of-season projection from the layered model
+(per-game projected points over a replacement-level player at that position, with
+replacement computed on the same basis from the free-agent pool). Because that
+baseline is ESPN's forward-looking projected average, it already reflects a player's
+expected role and injuries, so a player riding a temporary spike (for example, a
+receiver producing only because a teammate is hurt) is valued on what he is expected
+to do going forward, not his hot streak. A known multi-week absence (IR, PUP, a
+suspension) zeroes out the weeks the player is expected to miss.
+
+### The AI take
+
+Below the graded card, an AI model writes a short plain-English take on the deal. The
+deterministic card (values, grades, verdict) never depends on the model, so a weak or
+cheap model can only affect the prose, not the numbers. Two guardrails keep the prose
+honest: the prompt tells the model exactly how many players are on each side and
+requires it to name every one, and the code checks the result and re-asks if a player
+was dropped. The take is sent as its own follow-up message so a long card and a long
+take never share a single message's length limit and get cut off.
+
+It stays honest about its limits: it grades the lineup you would optimally start, not
+the one you actually set each week, and it can't read the other manager's mind.
 
 ## 12. Engineering practices
 
@@ -493,7 +541,10 @@ manager's mind.
   always described as backtested, not guaranteed.
 - Football is high-variance, so no tool can call two closely matched players
   reliably; that ceiling is real.
-- The trade evaluator judges paper value only.
+- The trade grade measures the change to each team's mathematically optimal starting
+  lineup, week by week. It assumes a manager always starts that optimal lineup, which
+  is a good proxy but not exactly how anyone plays, and it uses each opponent's roster
+  as of the last daily snapshot. It can't read the human side of a deal.
 - The rest-of-season weekly projections are the tool's own estimates, not ESPN's.
   ESPN does not expose a real future-week forecast, so the tool models one; the
   far-out weeks in particular lean on the baseline and opponent because Vegas,
