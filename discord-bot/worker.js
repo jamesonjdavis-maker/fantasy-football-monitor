@@ -265,10 +265,14 @@ async function tradeLater(interaction, give, get, league, teamGive, teamGet, env
           ? `Couldn't find those players in a league matching "${league}".`
           : `Couldn't find any players matching "${give}" or "${get}".`;
       } else {
-        text = tradeVerdict(g, r, teamGive, teamGet, tradeTeamShapes(snap, g, r, teamGive, teamGet));
+        // Send the card first, then the AI take as a separate follow-up message,
+        // so the two never share Discord's 2000-char limit and get truncated.
+        const card = tradeVerdict(g, r, teamGive, teamGet, tradeTeamShapes(snap, g, r, teamGive, teamGet));
+        await editReply(interaction, env, card);
         const context = rosterContext(snap, g, r, teamGive, teamGet);
         const note = await tradeCommentary(g, r, context, env).catch(() => "");
-        if (note) text += `\n\n💬 ${note}`;
+        if (note) await sendFollowup(interaction, env, `💬 ${note}`);
+        return;
       }
     }
   } catch (err) {
@@ -446,9 +450,10 @@ async function tradeFinderLater(interaction, partnerQuery, league, myTeamQuery, 
         lines.push(`**${n + 1}.** Give **${bundleStr(i.give)}** ↔ Get **${bundleStr(i.get)}**${totals}`);
       });
       lines.push("_Value = rest-of-season points/game over replacement. Ideas pair your surplus with their need and vice versa; the human side is still your call._");
-      text = lines.join("\n");
+      await editReply(interaction, env, lines.join("\n"));
       const note = await tradeFinderCommentary(myName, partner, ideas, mineShape, theirsShape, env).catch(() => "");
-      if (note) text += `\n\n💬 ${note}`;
+      if (note) await sendFollowup(interaction, env, `💬 ${note}`);
+      return;
     }
   } catch (err) {
     text = `Sorry — couldn't build trade ideas (${String(err).slice(0, 200)}).`;
@@ -887,10 +892,10 @@ async function tradeCommentary(g, r, context, env) {
     `GIVE side (${g.found.length} player${g.found.length === 1 ? "" : "s"}): ${giveList}. ` +
     `GET side (${r.found.length} player${r.found.length === 1 ? "" : "s"}): ${getList}. ` +
     (context || "");
-  const length = total <= 2 ? "two sentences" : total <= 4 ? "three or four sentences" : "four or five sentences";
+  const length = total <= 2 ? "two tight sentences" : "three tight sentences (about 70 words max)";
   const ask = (stern) => askOpenRouter(
     (stern ? "IMPORTANT: your previous answer left out a player. " : "") +
-    `Give a plain, optimized take on this multi-player fantasy trade for the rest of the season, in ${length}. ` +
+    `Give a concise, optimized take on this multi-player fantasy trade for the rest of the season, in ${length}. ` +
     `There are ${g.found.length} player(s) given and ${r.found.length} received — you MUST name EVERY ` +
     "one of them by name and account for each; do not omit anyone. The values shown are projected " +
     "rest-of-season points per game. Weigh total value, roster depth, and positional need (does it fill " +
@@ -914,6 +919,17 @@ async function editReply(interaction, env, text) {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ content: (text || "").slice(0, 1900) || "(nothing to show)" }),
+  });
+}
+
+// Send an extra message after the first reply (its own 2000-char budget).
+async function sendFollowup(interaction, env, text) {
+  if (!text) return;
+  const url = `https://discord.com/api/v10/webhooks/${env.DISCORD_APP_ID}/${interaction.token}`;
+  await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ content: text.slice(0, 1900) }),
   });
 }
 
