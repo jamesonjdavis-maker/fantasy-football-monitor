@@ -31,6 +31,7 @@ def normalize_player(
     on_bye: bool = False,
     lineup_slot: str | None = None,
     ros_proj: dict[str, float] | None = None,
+    proj_avg: float | None = None,
 ) -> dict[str, Any]:
     """Build one normalized player dict. Every field is JSON-serializable."""
     player = {
@@ -44,6 +45,9 @@ def normalize_player(
         "lineup_slot": (lineup_slot or "").upper() or None,
         "injury_status": _normalize_injury(injury_status),
         "proj_points": _round(proj_points),
+        # ESPN's forward-looking projected points PER GAME (season outlook), which
+        # unlike avg_points doesn't lag a slow start — the right projection anchor.
+        "proj_avg": _round(proj_avg),
         "actual_points": _round(actual_points),
         "avg_points": _round(avg_points),
         "percent_owned": _round(percent_owned),

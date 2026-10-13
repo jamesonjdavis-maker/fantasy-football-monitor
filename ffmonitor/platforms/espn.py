@@ -96,10 +96,13 @@ def _proj_meta(week: int, year: int) -> dict:
 
 
 def _baseline_pergame(p: dict) -> float | None:
-    """A player's per-game scoring baseline (volume x efficiency, already baked
-    into fantasy points), weighted toward recent form so a changed role or hot/
-    cold streak shows through. Falls back to the season average, then this week's
-    projection."""
+    """A player's per-game scoring baseline for the rest of the season. Anchored
+    to ESPN's forward-looking projected average (which, unlike the realized season
+    average, doesn't lag a slow start or an injury). Falls back to a recency-
+    weighted realized average, then this week's projection."""
+    proj_avg = p.get("proj_avg") or 0
+    if proj_avg > 0:
+        return round(float(proj_avg), 2)
     avg = p.get("avg_points") or 0
     recent = [x for x in (p.get("recent_points") or []) if isinstance(x, (int, float))]
     if avg > 0 and recent:
@@ -134,6 +137,20 @@ def _apply_ros_projections(player_groups: list[list[dict]], week: int, year: int
         playerfactors = None
     through = max(1, week - 1)  # defense stats through completed weeks only
     wk = str(week)
+    # My own roster comes from box scores, which may not carry projected_avg_points;
+    # backfill it from the league-roster/free-agent copies that do, by name.
+    have_avg: dict[str, float] = {}
+    for group in player_groups:
+        for p in group:
+            pa = p.get("proj_avg")
+            if pa and pa > 0:
+                have_avg[(p.get("name") or "").lower().strip()] = pa
+    for group in player_groups:
+        for p in group:
+            if not (p.get("proj_avg") and p["proj_avg"] > 0):
+                pa = have_avg.get((p.get("name") or "").lower().strip())
+                if pa:
+                    p["proj_avg"] = pa
     for group in player_groups:
         for p in group:
             base = _baseline_pergame(p)
@@ -177,6 +194,7 @@ def _box_player(bp: Any, week: int, weekly: dict[str, dict[str, float]] | None =
         percent_owned=getattr(bp, "percent_owned", None),
         on_bye=bool(on_bye),
         ros_proj=_player_ros(bp, week, weekly),
+        proj_avg=getattr(bp, "projected_avg_points", None),
     )
 
 
@@ -192,6 +210,7 @@ def _free_agent(p: Any, week: int, weekly: dict[str, dict[str, float]] | None = 
         avg_points=getattr(p, "avg_points", None),
         percent_owned=getattr(p, "percent_owned", None),
         ros_proj=_player_ros(p, week, weekly),
+        proj_avg=getattr(p, "projected_avg_points", None),
     )
 
 
@@ -276,6 +295,7 @@ def _roster_player(player: Any, week: int, weekly: dict[str, dict[str, float]] |
         avg_points=getattr(player, "avg_points", None),
         percent_owned=getattr(player, "percent_owned", None),
         ros_proj=_player_ros(player, week, weekly),
+        proj_avg=getattr(player, "projected_avg_points", None),
     )
 
 

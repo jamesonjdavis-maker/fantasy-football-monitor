@@ -513,12 +513,14 @@ function findWithProjections(snap, query, leagueFilter) {
     ];
     for (const p of pools) {
       if (!nameMatches(p.name, query)) continue;
-      if (p.ros_proj && Object.keys(p.ros_proj).length) return { p, league };
-      if (!fallback) fallback = { p, league };
+      if (p.ros_proj && Object.keys(p.ros_proj).length) return { p, league, week: s.week };
+      if (!fallback) fallback = { p, league, week: s.week };
     }
   }
   return fallback;
 }
+
+const _OUT_STATUSES = new Set(["OUT", "IR", "SUSPENDED", "PUP"]);
 
 function projectionLines(hit) {
   const p = hit.p;
@@ -531,12 +533,17 @@ function projectionLines(hit) {
     if (p.avg_points != null && p.avg_points > 0) msg += `\nSeason average so far: ${p.avg_points} pts/gm.`;
     return msg;
   }
+  const curWeek = hit.week;
+  const outNow = _OUT_STATUSES.has(p.injury_status);
   const lines = [header];
+  if (outNow) lines.push(`⚠️ Currently ${p.injury_status} — this week is zeroed out.`);
   let sum = 0, n = 0;
   for (const w of weeks) {
     const v = ros[String(w)];
     if (typeof v === "number" && v === 0) {
-      lines.push(`Week ${w}: — (bye)`);
+      // A zero is the player's bye, unless it's the current week and they're OUT.
+      const label = (w === curWeek && outNow) ? `(${p.injury_status.toLowerCase()})` : "(bye)";
+      lines.push(`Week ${w}: — ${label}`);
     } else {
       lines.push(`Week ${w}: ${v}`);
       if (typeof v === "number") { sum += v; n++; }
