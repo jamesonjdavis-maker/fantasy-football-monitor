@@ -265,7 +265,7 @@ async function tradeLater(interaction, give, get, league, teamGive, teamGet, env
           ? `Couldn't find those players in a league matching "${league}".`
           : `Couldn't find any players matching "${give}" or "${get}".`;
       } else {
-        text = tradeVerdict(g, r, teamGive, teamGet);
+        text = tradeVerdict(g, r, teamGive, teamGet, tradeTeamShapes(snap, g, r, teamGive, teamGet));
         const context = rosterContext(snap, g, r, teamGive, teamGet);
         const note = await tradeCommentary(g, r, context, env).catch(() => "");
         if (note) text += `\n\n💬 ${note}`;
@@ -612,6 +612,47 @@ function rosterContext(snap, g, r, teamGive, teamGet) {
   return ctx;
 }
 
+// Both teams' roster shapes (weakest-starter bars) so a trade can be graded on
+// whether the incoming players upgrade each team, not just raw value.
+function tradeTeamShapes(snap, g, r, teamGive, teamGet) {
+  const leagues = [...new Set([...g.found, ...r.found].map((f) => f.league))];
+  if (leagues.length !== 1) return null;
+  const plat = Object.values(snap.platforms || {}).find(
+    (s) => s && s.enabled && (s.league_name || s.label) === leagues[0]
+  );
+  if (!plat) return null;
+  const repl = seasonReplacement(plat);
+  const giveRoster = rosterOfTeam(plat, teamGive || plat.team_name);
+  let getRoster = teamGet ? rosterOfTeam(plat, teamGet) : null;
+  if (!teamGet) {
+    const partners = [...new Set(r.found.map((f) => f.owner).filter((o) => o && o !== "free agent" && o !== plat.team_name))];
+    getRoster = partners.flatMap((t) => (plat.league_rosters || {})[t] || []);
+  }
+  return {
+    giveShape: giveRoster && giveRoster.length ? teamShape(byPositionValued(giveRoster, repl)) : null,
+    getShape: getRoster && getRoster.length ? teamShape(byPositionValued(getRoster, repl)) : null,
+  };
+}
+
+// Letter grade for one team's side of a trade. `net` is its value-over-
+// replacement swing (what it receives minus what it gives); `gain` is how much
+// the incoming players upgrade its weakest starters (a need-fill softens a value
+// loss and sweetens a value win, so a smart needs-based swap can grade well for
+// both teams even when value is close to even).
+function tradeGrade(net, gain) {
+  const score = net + 0.6 * (gain || 0);
+  let grade, word;
+  if (score >= 7) [grade, word] = ["A", "big win"];
+  else if (score >= 4) [grade, word] = ["A-", "clear win"];
+  else if (score >= 2) [grade, word] = ["B", "good"];
+  else if (score >= 0.8) [grade, word] = ["B-", "slight win"];
+  else if (score > -0.8) [grade, word] = ["C", "fair / about even"];
+  else if (score > -2) [grade, word] = ["C-", "slight loss"];
+  else if (score > -4) [grade, word] = ["D", "poor"];
+  else [grade, word] = ["F", "big loss"];
+  return { grade, word };
+}
+
 // Normalize a name for forgiving matching: lowercase, strip accents and
 // punctuation, drop Jr./Sr./II/III suffixes, collapse spaces.
 function normName(s) {
@@ -766,7 +807,7 @@ function sideLines(label, side) {
   return lines;
 }
 
-function tradeVerdict(g, r, teamGive, teamGet) {
+function tradeVerdict(g, r, teamGive, teamGet, shapes) {
   const lines = ["🔁 **Trade check**"];
   const leagues = new Set([...g.found, ...r.found].map((f) => f.league));
   if (leagues.size === 1) lines[0] += ` (${[...leagues][0]})`;
@@ -804,7 +845,23 @@ function tradeVerdict(g, r, teamGive, teamGet) {
     } else {
       lines.push(`**Verdict:** you'd give up about ${Math.abs(diff)} points of value-over-replacement.`);
     }
-    lines.push("_Value = projected rest-of-season points per game (ESPN's forward outlook, so it already reflects expected role and injuries, including a long-term absence) minus a replacement-level player at that position. Roster depth, positional need, and the human side of the deal are still your call._");
+
+    // Per-team grade: value swing + whether the incoming players fill a weak spot.
+    const giveName = teamGive || "You";
+    const getName = teamGet || "The other side";
+    const giveIncoming = r.found.map((f) => ({ v: valueOf(f) || 0, pos: f.p.position }));
+    const getIncoming = g.found.map((f) => ({ v: valueOf(f) || 0, pos: f.p.position }));
+    const giveGain = shapes && shapes.giveShape ? lineupGain(giveIncoming, shapes.giveShape) : 0;
+    const getGain = shapes && shapes.getShape ? lineupGain(getIncoming, shapes.getShape) : 0;
+    const gGrade = tradeGrade(diff, giveGain);          // give side's net is rt - gt = diff
+    const rGrade = tradeGrade(-diff, getGain);
+    const fills = (gain) => (gain >= 1 ? ", fills a need" : "");
+    lines.push("");
+    lines.push("📊 **Grades:**");
+    lines.push(`• ${giveName}: **${gGrade.grade}** (${gGrade.word}) — net ${diff > 0 ? "+" : ""}${diff} value${fills(giveGain)}`);
+    lines.push(`• ${getName}: **${rGrade.grade}** (${rGrade.word}) — net ${-diff > 0 ? "+" : ""}${+(-diff).toFixed(1)} value${fills(getGain)}`);
+
+    lines.push("_Value = projected rest-of-season points per game (ESPN's forward outlook, so it already reflects expected role and injuries) minus a replacement-level player at that position. Grades also weigh whether the incoming players fill a weak starting spot. The human side of the deal is still your call._");
   }
   return lines.join("\n");
 }
