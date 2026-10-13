@@ -154,9 +154,12 @@ def _apply_ros_projections(player_groups: list[list[dict]], week: int, year: int
     for group in player_groups:
         for p in group:
             base = _baseline_pergame(p)
-            # Player/team level adjustments: role trend, efficiency regression,
-            # team pace/pass rate (constant across weeks, so applied to the level).
-            if base and playerfactors:
+            # Role trend, efficiency regression, and team pace/pass rate only help
+            # when the baseline is REALIZED points (they add the forward-looking
+            # view). ESPN's projected average already bakes all of that in, so
+            # applying them there would double-count and inflate — skip them then.
+            uses_espn_proj = bool(p.get("proj_avg") and p["proj_avg"] > 0)
+            if base and playerfactors and not uses_espn_proj:
                 base = round(base * playerfactors.level_factor(
                     p.get("name"), p.get("pro_team"), p.get("position"), year, through
                 ), 2)
