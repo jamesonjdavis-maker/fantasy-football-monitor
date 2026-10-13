@@ -66,10 +66,26 @@ def _player_ros(obj: Any, week: int, weekly: dict[str, dict[str, float]] | None)
     return _ros_projections(obj, week)
 
 
+def _baseline_pergame(p: dict) -> float | None:
+    """A player's per-game scoring baseline (volume x efficiency, already baked
+    into fantasy points), weighted toward recent form so a changed role or hot/
+    cold streak shows through. Falls back to the season average, then this week's
+    projection."""
+    avg = p.get("avg_points") or 0
+    recent = [x for x in (p.get("recent_points") or []) if isinstance(x, (int, float))]
+    if avg > 0 and recent:
+        recent_avg = sum(recent) / len(recent)
+        return round(0.65 * avg + 0.35 * recent_avg, 2)
+    if avg > 0:
+        return avg
+    return p.get("proj_points")
+
+
 def _apply_ros_projections(player_groups: list[list[dict]], week: int, year: int) -> None:
-    """Overwrite each player's ros_proj with a matchup-adjusted weekly line
-    (per-game baseline scaled by each week's opponent defense, byes = 0).
-    Best-effort: if nflverse data can't load, players keep their fallback."""
+    """Overwrite each player's ros_proj with a matchup-adjusted weekly line: a
+    recency-weighted per-game baseline scaled by opponent defense-vs-position and
+    the Vegas game environment, byes = 0. Best-effort: if nflverse data can't
+    load, players keep their fallback."""
     try:
         from ..ml import matchup
     except Exception:
@@ -77,9 +93,8 @@ def _apply_ros_projections(player_groups: list[list[dict]], week: int, year: int
     through = max(1, week - 1)  # defense stats through completed weeks only
     for group in player_groups:
         for p in group:
-            base = p.get("avg_points") or p.get("proj_points")
             ros = matchup.build_ros(
-                base, p.get("position"), p.get("pro_team"),
+                _baseline_pergame(p), p.get("position"), p.get("pro_team"),
                 week, _SEASON_END_WEEK, year, through,
             )
             if ros:

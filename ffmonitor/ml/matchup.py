@@ -60,6 +60,60 @@ def _schedule_map(year: int) -> dict[str, dict[int, str]]:
     return out
 
 
+@lru_cache(maxsize=4)
+def _weekly_odds(year: int, start_week: int, end_week: int) -> dict[int, dict]:
+    """{week: {"teams": {team: {spread, implied}}, "avg_implied": float|None}}.
+
+    Vegas only posts lines for the near term, so future weeks come back empty and
+    the Vegas factor is a neutral 1.0 there — the matchup (defense) layer still
+    applies. One fetch per week, cached across all leagues."""
+    try:
+        from ..odds import fetch_odds
+    except Exception:
+        return {}
+    out: dict[int, dict] = {}
+    for w in range(start_week, end_week + 1):
+        try:
+            odds = fetch_odds(w, year)
+        except Exception:
+            odds = {}
+        teams: dict[str, dict] = {}
+        implieds: list[float] = []
+        for abbr, info in (odds or {}).items():
+            t = _norm_team(abbr)
+            implied = info.get("implied_total")
+            teams[t] = {"spread": info.get("spread"), "implied": implied}
+            if implied is not None:
+                implieds.append(float(implied))
+        out[w] = {
+            "teams": teams,
+            "avg_implied": round(sum(implieds) / len(implieds), 2) if implieds else None,
+        }
+    return out
+
+
+def _vegas_factor(odds_week: dict | None, team: str | None, pos: str) -> float:
+    """Game-environment multiplier for one team-week: implied scoring total vs the
+    slate average, times a position-specific game-script nudge from the spread."""
+    if not odds_week:
+        return 1.0
+    info = (odds_week.get("teams") or {}).get(team)
+    if not info:
+        return 1.0
+    factor = 1.0
+    implied, avg = info.get("implied"), odds_week.get("avg_implied")
+    if implied and avg and avg > 0:
+        factor *= max(0.85, min(1.20, implied / avg))  # more scoring -> more points
+    spread = info.get("spread")
+    if spread is not None:
+        s = max(-10.0, min(10.0, float(spread)))  # negative = favored
+        if pos == "RB":
+            factor *= 1.0 + (-s) * 0.010   # favorites run late -> RB boost
+        else:                              # QB / WR / TE
+            factor *= 1.0 + (s) * 0.008    # underdogs throw to catch up -> boost
+    return max(0.80, min(1.25, factor))
+
+
 @lru_cache(maxsize=8)
 def _dvp_factors(year: int, through_week: int) -> dict[tuple[str, str], float]:
     """{(defense, position): factor} where factor = points that defense allows
@@ -122,12 +176,16 @@ def build_ros(
         return None
     pos = str(position).upper()
     factors = _dvp_factors(year, through_week)
+    odds = _weekly_odds(year, start_week, end_week)
     out: dict[str, float] = {}
     for w in range(start_week, end_week + 1):
         opp = team_games.get(w)
         if opp is None:
             out[str(w)] = 0.0  # bye week
             continue
-        factor = factors.get((opp, pos), 1.0)
-        out[str(w)] = round(base * factor, 2)
+        dvp = factors.get((opp, pos), 1.0)              # opponent defense
+        vegas = _vegas_factor(odds.get(w), team_n, pos)  # scoring env + game script
+        # Keep the combined swing within a believable band.
+        combined = max(0.60, min(1.55, dvp * vegas))
+        out[str(w)] = round(base * combined, 2)
     return out or None
