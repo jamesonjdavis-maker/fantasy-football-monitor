@@ -203,11 +203,18 @@ double-counted. The code lives in `ffmonitor/ml/matchup.py` (the per-week factor
 `ffmonitor/ml/weather.py` (the weather factor), and the result is attached to every
 player in the snapshot as `ros_proj` by `ffmonitor/platforms/espn.py`.
 
-**The baseline** is a recency-weighted blend of the player's per-game fantasy
-points (about two-thirds season, one-third last three games). Fantasy points are
-already the product of a player's volume and efficiency, so the baseline is where
-both of those live; the recency weighting lets a changed role or a hot/cold streak
-move the number instead of a flat season average.
+**The baseline** is a per-game scoring level for the rest of the season. It blends
+ESPN's forward-looking projected average (75%) with the player's own realized form
+(25%). ESPN's projected average is the sharper anchor because their analysts fold
+in role, depth-chart, and injury news that free data can't see, so it doesn't lag a
+slow start the way a raw season average does (a back returning from injury is
+projected near his real level, not the handful of quiet games he has actually
+played). The 25% realized-form term pulls a big gap between projection and reality
+partway back toward what is actually happening on the field, in both directions: a
+player ESPN projects well above his recent play gets tempered down, and one
+outscoring his projection gets nudged up, without gutting a genuine bounce-back.
+This blend is the one place the overall *level* leans on ESPN; everything else
+below, the week-to-week movement, is computed here.
 
 **The level factors** (roughly constant across weeks, so they scale the baseline)
 come from the NFL history data:
@@ -471,11 +478,13 @@ one shows the real gap.
 The underlying value still uses the rest-of-season projection from the layered model
 (per-game projected points over a replacement-level player at that position, with
 replacement computed on the same basis from the free-agent pool). Because that
-baseline is ESPN's forward-looking projected average, it already reflects a player's
-expected role and injuries, so a player riding a temporary spike (for example, a
-receiver producing only because a teammate is hurt) is valued on what he is expected
-to do going forward, not his hot streak. A known multi-week absence (IR, PUP, a
-suspension) zeroes out the weeks the player is expected to miss.
+baseline leans mostly on ESPN's forward-looking projected average (blended with the
+player's realized form), it already reflects a player's expected role and injuries,
+so a player riding a temporary spike (for example, a receiver producing only because
+a teammate is hurt) is valued on what he is expected to do going forward, not his hot
+streak, while a big gap between projection and recent play is tempered partway toward
+reality. A known multi-week absence (IR, PUP, a suspension) zeroes out the weeks the
+player is expected to miss.
 
 ### The AI take
 
