@@ -74,6 +74,15 @@ export default {
         return json({ type: 5 });
       }
 
+      // /tradefinder team:... [league] [my_team] — suggest mutually useful deals.
+      if (name === "tradefinder") {
+        const team = (opts.find((o) => o.name === "team")?.value || "").toString();
+        const league = (opts.find((o) => o.name === "league")?.value || "").toString();
+        const myTeam = (opts.find((o) => o.name === "my_team")?.value || "").toString();
+        ctx.waitUntil(tradeFinderLater(interaction, team, league, myTeam, env));
+        return json({ type: 5 });
+      }
+
       // /projections player:... [league:...] — week-by-week ROS projections.
       if (name === "projections") {
         const player = (opts.find((o) => o.name === "player")?.value || "").toString();
@@ -119,7 +128,7 @@ async function autocomplete(interaction, env, ctx) {
     }
 
     // The team fields: suggest the league's team names.
-    if (focused.name === "team_give" || focused.name === "team_get") {
+    if (["team_give", "team_get", "team", "my_team"].includes(focused.name)) {
       const q = normName(focused.value || "");
       const choices = teamNames(snap, leagueOpt)
         .filter((n) => !q || normName(n).includes(q))
@@ -266,6 +275,158 @@ async function tradeLater(interaction, give, get, league, teamGive, teamGet, env
     text = `Sorry — couldn't evaluate the trade (${String(err).slice(0, 200)}).`;
   }
   await editReply(interaction, env, text);
+}
+
+// --- /tradefinder: suggest mutually useful deals with a specific team ---------
+const _REQUIRED = { QB: 1, RB: 2, WR: 2, TE: 1 };  // typical startable depth
+
+function playerValue(p, repl) {
+  const basis = tradeBasis(p);
+  if (basis == null) return null;
+  const rep = repl[p.position];
+  return rep != null ? +(basis - rep).toFixed(1) : +Number(basis).toFixed(1);
+}
+
+// Group a roster's startable players by position, sorted by value (best first).
+function byPositionValued(players, repl) {
+  const by = {};
+  for (const p of players || []) {
+    if (!["QB", "RB", "WR", "TE"].includes(p.position)) continue;
+    const v = playerValue(p, repl);
+    if (v == null) continue;
+    (by[p.position] = by[p.position] || []).push({ p, v });
+  }
+  for (const pos of Object.keys(by)) by[pos].sort((a, b) => b.v - a.v);
+  return by;
+}
+
+// Need score per position: >0 means thin (fewer than the starting requirement,
+// or exactly at it with no backup). Surplus = players beyond the requirement.
+function teamShape(by) {
+  const need = {}, surplus = {};
+  for (const pos of ["QB", "RB", "WR", "TE"]) {
+    const list = by[pos] || [];
+    const req = _REQUIRED[pos];
+    need[pos] = Math.max(0, req + 0.5 - list.length);  // 0.5 = thin starter, no backup
+    surplus[pos] = list.slice(req);                    // tradeable depth
+  }
+  return { need, surplus };
+}
+
+function findLeagueForTeam(snap, leagueFilter, partnerQuery) {
+  const lf = normName(leagueFilter || ""), pq = normName(partnerQuery || "");
+  for (const [k, s] of Object.entries(snap.platforms || {})) {
+    if (!s || !s.enabled) continue;
+    const league = s.league_name || s.label || k;
+    if (lf && !normName(league).includes(lf)) continue;
+    const partner = Object.keys(s.league_rosters || {}).find((t) => normName(t).includes(pq));
+    if (partner) return { plat: s, league, partner };
+  }
+  return null;
+}
+
+// Pair my surplus (at a position the partner needs) with their surplus (at a
+// position I need), within a fair value band, and rank by mutual benefit.
+function buildTradeIdeas(mineBy, mineShape, theirsBy, theirsShape) {
+  const ideas = [];
+  for (const posGive of ["QB", "RB", "WR", "TE"]) {
+    if (theirsShape.need[posGive] <= 0) continue;        // partner must want it
+    for (const give of mineShape.surplus[posGive] || []) {
+      for (const posGet of ["QB", "RB", "WR", "TE"]) {
+        if (posGet === posGive || mineShape.need[posGet] <= 0) continue;  // I must want it
+        for (const get of theirsShape.surplus[posGet] || []) {
+          const gap = Math.abs(get.v - give.v);
+          const band = Math.max(3, 0.3 * Math.max(Math.abs(give.v), Math.abs(get.v), 1));
+          if (gap > band) continue;
+          const score =
+            theirsShape.need[posGive] + mineShape.need[posGet] - gap * 0.3 + (give.v + get.v) * 0.04;
+          ideas.push({ give: give.p, gv: give.v, get: get.p, rv: get.v, score });
+        }
+      }
+    }
+  }
+  ideas.sort((a, b) => b.score - a.score);
+  const seen = new Set(), top = [];
+  for (const i of ideas) {
+    const key = `${i.give.name}>${i.get.name}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    top.push(i);
+    if (top.length >= 5) break;
+  }
+  return top;
+}
+
+async function tradeFinderLater(interaction, partnerQuery, league, myTeamQuery, env) {
+  let text;
+  try {
+    const snap = await fetchSnapshot(env);
+    if (!snap) { await editReply(interaction, env, "No league data available yet."); return; }
+    const found = findLeagueForTeam(snap, league, partnerQuery);
+    if (!found) {
+      await editReply(interaction, env, league
+        ? `Couldn't find a team matching "${partnerQuery}" in a league matching "${league}".`
+        : `Couldn't find a team matching "${partnerQuery}". Try adding league:.`);
+      return;
+    }
+    const { plat, league: leagueName, partner } = found;
+    const repl = seasonReplacement(plat);
+
+    // My roster: the named team if given, else my own team in this league.
+    let myName = plat.team_name, myPlayers = plat.roster;
+    if (myTeamQuery) {
+      const match = Object.keys(plat.league_rosters || {}).find((t) => normName(t).includes(normName(myTeamQuery)));
+      if (match) { myName = match; myPlayers = (plat.league_rosters || {})[match]; }
+    }
+    if (normName(myName) === normName(partner)) {
+      await editReply(interaction, env, "That's the same team on both sides — pick a different partner.");
+      return;
+    }
+    const theirPlayers = (plat.league_rosters || {})[partner] || [];
+
+    const mineBy = byPositionValued(myPlayers, repl);
+    const theirsBy = byPositionValued(theirPlayers, repl);
+    const mineShape = teamShape(mineBy), theirsShape = teamShape(theirsBy);
+    const ideas = buildTradeIdeas(mineBy, mineShape, theirsBy, theirsShape);
+
+    const lines = [`🔎 **Trade ideas: ${myName} ↔ ${partner}** (${leagueName})`];
+    const needStr = (shape) => ["QB", "RB", "WR", "TE"].filter((x) => shape.need[x] > 0).join(", ") || "none pressing";
+    lines.push(`Your needs: ${needStr(mineShape)} · ${partner}'s needs: ${needStr(theirsShape)}`);
+    if (!ideas.length) {
+      lines.push("\nNo clean value-fair swaps where you each fill a need — your rosters may not line up, or needs overlap. Try a different partner, or use `/trade` to test a specific idea.");
+      text = lines.join("\n");
+    } else {
+      lines.push("");
+      ideas.forEach((i, n) => {
+        lines.push(`**${n + 1}.** Give **${i.give.name}** (${i.give.position}, val ${i.gv > 0 ? "+" : ""}${i.gv}) ↔ Get **${i.get.name}** (${i.get.position}, val ${i.rv > 0 ? "+" : ""}${i.rv})`);
+      });
+      lines.push("_Value = rest-of-season points/game over replacement. Ideas pair your surplus with their need and vice versa; the human side is still your call._");
+      text = lines.join("\n");
+      const note = await tradeFinderCommentary(myName, partner, ideas, mineShape, theirsShape, env).catch(() => "");
+      if (note) text += `\n\n💬 ${note}`;
+    }
+  } catch (err) {
+    text = `Sorry — couldn't build trade ideas (${String(err).slice(0, 200)}).`;
+  }
+  await editReply(interaction, env, text);
+}
+
+async function tradeFinderCommentary(myName, partner, ideas, mineShape, theirsShape, env) {
+  if (!env.OPENROUTER_API_KEY || !ideas.length) return "";
+  const list = ideas
+    .map((i, n) => `${n + 1}) give ${i.give.name} (${i.give.position}, ${i.gv}) for ${i.get.name} (${i.get.position}, ${i.rv})`)
+    .join("; ");
+  const needs = (s) => ["QB", "RB", "WR", "TE"].filter((x) => s.need[x] > 0).join("/") || "none";
+  const facts =
+    `My team: ${myName} (needs ${needs(mineShape)}). Partner: ${partner} (needs ${needs(theirsShape)}). ` +
+    `Candidate swaps by rest-of-season value over replacement: ${list}.`;
+  return await askOpenRouter(
+    "You are a fantasy trade negotiator. From these candidate swaps, recommend the 2 best " +
+    "deals to actually pitch and say in one line each why it works for BOTH teams (who fills " +
+    "what need). Values are rest-of-season points per game over replacement. Be concise; " +
+    "don't invent players not listed.",
+    facts, env
+  );
 }
 
 async function projectionsLater(interaction, player, league, env) {

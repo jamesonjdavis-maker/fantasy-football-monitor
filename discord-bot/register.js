@@ -58,6 +58,15 @@ const commands = [
       { name: "league", description: "League to scope to (optional; if the player is in several)", type: 3, required: false, autocomplete: true },
     ],
   },
+  {
+    name: "tradefinder",
+    description: "Suggest trades that help both you and a chosen team",
+    options: [
+      { name: "team", description: "Team you'd like to trade with", type: 3, required: true, autocomplete: true },
+      { name: "league", description: "League to scope to (optional; if team names repeat)", type: 3, required: false, autocomplete: true },
+      { name: "my_team", description: "Your team (optional; defaults to your own team in that league)", type: 3, required: false, autocomplete: true },
+    ],
+  },
 ];
 
 const url = GUILD_ID
