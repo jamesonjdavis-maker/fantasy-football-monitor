@@ -95,21 +95,32 @@ def _proj_meta(week: int, year: int) -> dict:
     return meta
 
 
+def _realized_form(p: dict) -> float | None:
+    """The player's own realized per-game form: recent weeks if we have them, else
+    the season average. None if there's nothing to go on."""
+    recent = [x for x in (p.get("recent_points") or []) if isinstance(x, (int, float))]
+    if recent:
+        return sum(recent) / len(recent)
+    avg = p.get("avg_points") or 0
+    return avg if avg > 0 else None
+
+
 def _baseline_pergame(p: dict) -> float | None:
-    """A player's per-game scoring baseline for the rest of the season. Anchored
-    to ESPN's forward-looking projected average (which, unlike the realized season
-    average, doesn't lag a slow start or an injury). Falls back to a recency-
-    weighted realized average, then this week's projection."""
+    """A player's per-game scoring baseline for the rest of the season. Blends
+    ESPN's forward-looking projected average (role/depth/injury-aware, doesn't lag
+    a slow start) 75% with the player's own realized form 25%, so a big gap between
+    projection and reality gets pulled partway toward what's actually happening,
+    without gutting a genuine bounce-back. Falls back to realized form, then this
+    week's projection, when ESPN's average isn't available."""
     proj_avg = p.get("proj_avg") or 0
     if proj_avg > 0:
+        form = _realized_form(p)
+        if form and form > 0:
+            return round(0.75 * proj_avg + 0.25 * form, 2)
         return round(float(proj_avg), 2)
-    avg = p.get("avg_points") or 0
-    recent = [x for x in (p.get("recent_points") or []) if isinstance(x, (int, float))]
-    if avg > 0 and recent:
-        recent_avg = sum(recent) / len(recent)
-        return round(0.65 * avg + 0.35 * recent_avg, 2)
-    if avg > 0:
-        return avg
+    form = _realized_form(p)
+    if form and form > 0:
+        return round(form, 2)
     return p.get("proj_points")
 
 
