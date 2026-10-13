@@ -655,22 +655,41 @@ function optimalStartingPoints(players, slots) {
   return +total.toFixed(1);
 }
 
-// Change to a team's best starting lineup if it ships `giveNames` and adds
-// `getPlayers` ([{pos, pts}]). This is the real weekly impact: depth that never
-// starts barely moves it, and landing one stud that bumps a weak starter does.
-function startingDelta(roster, giveNames, getPlayers, slots) {
-  const toPts = (p) => ({ pos: p.position, pts: tradeBasis(p) || 0 });
-  const before = (roster || []).map(toPts);
-  const after = (roster || [])
-    .filter((p) => !giveNames.has(normName(p.name)))
-    .map(toPts)
-    .concat(getPlayers);
-  return +(optimalStartingPoints(after, slots) - optimalStartingPoints(before, slots)).toFixed(1);
+// The remaining weeks present in the rosters' per-week projections.
+function rosterWeeks(players) {
+  for (const p of players || []) {
+    if (p && p.ros_proj) {
+      const w = Object.keys(p.ros_proj).map(Number).filter((n) => !Number.isNaN(n)).sort((a, b) => a - b);
+      if (w.length) return w;
+    }
+  }
+  return [];
 }
 
-// Each team's starting-lineup point change from the trade (not zero-sum: each
-// team optimizes its own lineup, so both can gain). Null if we can't resolve
-// both rosters in a single league.
+// Week-by-week change to a team's best starting lineup if it ships `giveNames`
+// and adds `getObjs` (full player objects). For EACH remaining week we rebuild
+// the optimal lineup from that week's projection (byes and injury weeks = 0), so
+// depth that never starts barely counts, and the timing of byes/injuries shows
+// through. Returns {avg, total, weeks, worst} or null if no weekly data.
+function startingDeltaWeekly(roster, giveNames, getObjs, slots) {
+  const before = roster || [];
+  const after = before.filter((p) => !giveNames.has(normName(p.name))).concat(getObjs);
+  const weeks = rosterWeeks(before.concat(getObjs));
+  if (!weeks.length) return null;
+  const wkPts = (p, w) => ({ pos: p.position, pts: (p.ros_proj && typeof p.ros_proj[w] === "number") ? p.ros_proj[w] : 0 });
+  let total = 0, worst = null;
+  for (const w of weeks) {
+    const d = optimalStartingPoints(after.map((p) => wkPts(p, w)), slots)
+            - optimalStartingPoints(before.map((p) => wkPts(p, w)), slots);
+    total += d;
+    if (worst === null || d < worst.d) worst = { w: +w, d: +d.toFixed(1) };
+  }
+  return { avg: +(total / weeks.length).toFixed(1), total: +total.toFixed(1), weeks: weeks.length, worst };
+}
+
+// Each team's week-by-week starting-lineup change from the trade (not zero-sum:
+// each team optimizes its own lineup, so both can gain). Null if we can't
+// resolve both rosters in a single league.
 function tradeTeamImpact(snap, g, r, teamGive, teamGet) {
   const leagues = [...new Set([...g.found, ...r.found].map((f) => f.league))];
   if (leagues.length !== 1) return null;
@@ -685,13 +704,12 @@ function tradeTeamImpact(snap, g, r, teamGive, teamGet) {
     const partners = [...new Set(r.found.map((f) => f.owner).filter((o) => o && o !== "free agent" && o !== plat.team_name))];
     getRoster = partners.flatMap((t) => (plat.league_rosters || {})[t] || []);
   }
-  const asPts = (side) => side.found.map((f) => ({ pos: f.p.position, pts: tradeBasis(f.p) || 0 }));
   const giveNames = new Set(g.found.map((f) => normName(f.p.name)));
   const getNames = new Set(r.found.map((f) => normName(f.p.name)));
   return {
     // The give side ships g and receives r; the get side the reverse.
-    giveDelta: giveRoster && giveRoster.length ? startingDelta(giveRoster, giveNames, asPts(r), slots) : null,
-    getDelta: getRoster && getRoster.length ? startingDelta(getRoster, getNames, asPts(g), slots) : null,
+    give: giveRoster && giveRoster.length ? startingDeltaWeekly(giveRoster, giveNames, r.found.map((f) => f.p), slots) : null,
+    get: getRoster && getRoster.length ? startingDeltaWeekly(getRoster, getNames, g.found.map((f) => f.p), slots) : null,
   };
 }
 
@@ -891,21 +909,25 @@ function tradeVerdict(g, r, teamGive, teamGet, impact) {
     const getName = teamGet || "The other side";
     const sign = (x) => `${x > 0 ? "+" : ""}${x}`;
 
-    // Grade on the change to each team's actual STARTING lineup (what matters:
-    // bench depth you wouldn't play barely counts), not the zero-sum value swing.
-    const haveImpact = impact && impact.giveDelta != null && impact.getDelta != null;
-    const gDelta = haveImpact ? impact.giveDelta : diff;
-    const rDelta = haveImpact ? impact.getDelta : -diff;
-    const gGrade = tradeGrade(gDelta), rGrade = tradeGrade(rDelta);
+    // Grade on the week-by-week change to each team's actual STARTING lineup
+    // (bench depth you wouldn't play barely counts; byes and injuries show up in
+    // the specific weeks they happen), not the zero-sum raw value swing.
+    const haveImpact = impact && impact.give && impact.get;
+    const gD = haveImpact ? impact.give : null;
+    const rD = haveImpact ? impact.get : null;
+    const gGrade = tradeGrade(haveImpact ? gD.avg : diff);
+    const rGrade = tradeGrade(haveImpact ? rD.avg : -diff);
+    const detail = (d) => `starters ${sign(d.avg)} pts/wk (${sign(d.total)} over ${d.weeks} wk)`;
+    const rough = (d) => (d.worst && d.worst.d <= -3) ? `; roughest Wk ${d.worst.w} (${d.worst.d})` : "";
 
-    lines.push("📊 **Grades — change to each team's starting lineup:**");
-    lines.push(`• ${giveName}: **${gGrade.grade}** (${gGrade.word})${haveImpact ? ` — starters ${sign(gDelta)} pts/wk` : ""}`);
-    lines.push(`• ${getName}: **${rGrade.grade}** (${rGrade.word})${haveImpact ? ` — starters ${sign(rDelta)} pts/wk` : ""}`);
+    lines.push("📊 **Grades — starting-lineup impact, week by week:**");
+    lines.push(`• ${giveName}: **${gGrade.grade}** (${gGrade.word})${haveImpact ? ` — ${detail(gD)}${rough(gD)}` : ""}`);
+    lines.push(`• ${getName}: **${rGrade.grade}** (${rGrade.word})${haveImpact ? ` — ${detail(rD)}${rough(rD)}` : ""}`);
     lines.push("");
 
     if (haveImpact) {
       const favored = diff >= 0 ? giveName : getName;
-      lines.push(`_Graded on each team's best starting lineup, so bench depth you wouldn't start barely counts and landing one player who upgrades a starter does. On raw value across all players (over replacement) the deal favors ${favored} by ${Math.abs(diff)}, but the lineup you actually start is what matters. The human side is still your call._`);
+      lines.push(`_Graded by rebuilding each team's best starting lineup for every remaining week (byes and injuries count as 0 those weeks), so depth you wouldn't start barely moves it. Raw value across all players (over replacement) favors ${favored} by ${Math.abs(diff)}, but the lineup you actually start week to week is what matters. The human side is still your call._`);
     } else {
       lines.push("_Graded on value over replacement (couldn't read full rosters to grade the starting lineup here). Projections are rest-of-season points per game. The human side is still your call._");
     }
