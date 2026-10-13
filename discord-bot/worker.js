@@ -672,10 +672,12 @@ function rosterWeeks(players) {
 // the optimal lineup from that week's projection (byes and injury weeks = 0), so
 // depth that never starts barely counts, and the timing of byes/injuries shows
 // through. Returns {avg, total, weeks, worst} or null if no weekly data.
-function startingDeltaWeekly(roster, giveNames, getObjs, slots) {
+function startingDeltaWeekly(roster, giveNames, getObjs, slots, afterWeek) {
   const before = roster || [];
   const after = before.filter((p) => !giveNames.has(normName(p.name))).concat(getObjs);
-  const weeks = rosterWeeks(before.concat(getObjs));
+  let weeks = rosterWeeks(before.concat(getObjs));
+  // Only weeks still ahead: a trade can't change a week that's already locked.
+  if (afterWeek) weeks = weeks.filter((w) => w > afterWeek);
   if (!weeks.length) return null;
   const wkPts = (p, w) => ({ pos: p.position, pts: (p.ros_proj && typeof p.ros_proj[w] === "number") ? p.ros_proj[w] : 0 });
   let total = 0, worst = null;
@@ -707,10 +709,11 @@ function tradeTeamImpact(snap, g, r, teamGive, teamGet) {
   }
   const giveNames = new Set(g.found.map((f) => normName(f.p.name)));
   const getNames = new Set(r.found.map((f) => normName(f.p.name)));
+  const curWeek = plat.week || 0;  // exclude the current/locked week from the impact
   return {
     // The give side ships g and receives r; the get side the reverse.
-    give: giveRoster && giveRoster.length ? startingDeltaWeekly(giveRoster, giveNames, r.found.map((f) => f.p), slots) : null,
-    get: getRoster && getRoster.length ? startingDeltaWeekly(getRoster, getNames, g.found.map((f) => f.p), slots) : null,
+    give: giveRoster && giveRoster.length ? startingDeltaWeekly(giveRoster, giveNames, r.found.map((f) => f.p), slots, curWeek) : null,
+    get: getRoster && getRoster.length ? startingDeltaWeekly(getRoster, getNames, g.found.map((f) => f.p), slots, curWeek) : null,
   };
 }
 
