@@ -27,6 +27,20 @@ def _norm(abbr: str | None) -> str | None:
     return _ALIASES.get(a, a)
 
 
+_SUMMARY = "https://site.api.espn.com/apis/site/v2/sports/football/nfl/summary"
+
+
+def _event_pickcenter(event_id: str) -> dict | None:
+    """Odds for one game from its summary endpoint's pickcenter (ESPN removed
+    odds from the scoreboard feed). Returns the first provider's entry, or None."""
+    try:
+        data = requests.get(_SUMMARY, params={"event": event_id}, timeout=_TIMEOUT).json()
+    except (requests.RequestException, ValueError):
+        return None
+    pc = data.get("pickcenter") or []
+    return pc[0] if pc else None
+
+
 def fetch_odds(week: int | None = None, season: int | None = None) -> dict[str, dict]:
     """Return {team_abbr: {"spread", "total", "implied_total"}} for the slate.
 
@@ -34,7 +48,7 @@ def fetch_odds(week: int | None = None, season: int | None = None) -> dict[str, 
     is how many points Vegas expects that team to score, derived as
     (total - spread) / 2. Empty on any failure so the monitor is never blocked.
     """
-    params: dict[str, str] = {}
+    params: dict[str, str] = {"seasontype": "2"}
     if week:
         params["week"] = str(week)
     if season:
@@ -46,39 +60,36 @@ def fetch_odds(week: int | None = None, season: int | None = None) -> dict[str, 
 
     out: dict[str, dict] = {}
     for event in data.get("events", []):
-        for comp in event.get("competitions", []):
-            competitors = comp.get("competitors", [])
-            odds = comp.get("odds") or []
-            if len(competitors) < 2 or not odds:
-                continue
-            home = next((c for c in competitors if c.get("homeAway") == "home"), None)
-            away = next((c for c in competitors if c.get("homeAway") == "away"), None)
-            if not home or not away:
-                continue
-            home_abbr = _norm((home.get("team") or {}).get("abbreviation"))
-            away_abbr = _norm((away.get("team") or {}).get("abbreviation"))
+        comp = (event.get("competitions") or [{}])[0]
+        competitors = comp.get("competitors", [])
+        home = next((c for c in competitors if c.get("homeAway") == "home"), None)
+        away = next((c for c in competitors if c.get("homeAway") == "away"), None)
+        if not home or not away:
+            continue
+        home_abbr = _norm((home.get("team") or {}).get("abbreviation"))
+        away_abbr = _norm((away.get("team") or {}).get("abbreviation"))
 
-            total = odds[0].get("overUnder")
-            try:
-                total = float(total) if total is not None else None
-            except (TypeError, ValueError):
-                total = None
+        pc = _event_pickcenter(event.get("id"))
+        if not pc:
+            continue  # no line posted yet (common for games more than ~1-2 weeks out)
 
-            details = (odds[0].get("details") or "").strip()
-            if details.upper() in ("EVEN", "PK", "PICK"):
-                home_spread = away_spread = 0.0
-            else:
-                m = _DETAILS_RE.match(details)
-                if not m:
-                    continue
-                fav = _norm(m.group(1))
-                line = float(m.group(2))  # negative, e.g. -7.5
-                home_spread = line if fav == home_abbr else -line
-                away_spread = -home_spread
+        total = pc.get("overUnder")
+        try:
+            total = float(total) if total is not None else None
+        except (TypeError, ValueError):
+            total = None
 
-            for abbr, spread in ((home_abbr, home_spread), (away_abbr, away_spread)):
-                implied = round((total - spread) / 2, 1) if total is not None else None
-                out[abbr] = {"spread": spread, "total": total, "implied_total": implied}
+        try:
+            mag = abs(float(pc.get("spread")))
+        except (TypeError, ValueError):
+            mag = 0.0
+        # pickcenter flags which side is favored; favored team's spread is negative.
+        home_fav = bool((pc.get("homeTeamOdds") or {}).get("favorite"))
+        home_spread = -mag if home_fav else mag
+
+        for abbr, spread in ((home_abbr, home_spread), (away_abbr, -home_spread)):
+            implied = round((total - spread) / 2, 1) if total is not None else None
+            out[abbr] = {"spread": spread, "total": total, "implied_total": implied}
     return out
 
 

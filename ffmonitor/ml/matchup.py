@@ -74,7 +74,10 @@ def _weekly_odds(year: int, start_week: int, end_week: int) -> dict[int, dict]:
     except Exception:
         return {}
     out: dict[int, dict] = {}
-    for w in range(start_week, end_week + 1):
+    # Lines are only posted ~1-2 weeks out, and each week now costs a summary
+    # request per game, so only fetch the near term; far weeks stay neutral.
+    odds_end = min(end_week, start_week + 2)
+    for w in range(start_week, odds_end + 1):
         try:
             odds = fetch_odds(w, year)
         except Exception:
