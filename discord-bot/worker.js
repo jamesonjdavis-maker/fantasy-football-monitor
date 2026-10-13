@@ -969,39 +969,42 @@ function gradeSummaryText(g, r, teamGive, teamGet, impact) {
 
 async function tradeCommentary(g, r, context, env, teamGive, teamGet, impact) {
   if (!env.OPENROUTER_API_KEY || (!g.found.length && !r.found.length)) return "";
-  const desc = (f) => `${f.p.name} (${f.p.position}, value ${valueOf(f)}, ${rangeStr(f.p)})`;
-  const giveList = g.found.map(desc).join("; ") || "nobody";
-  const getList = r.found.map(desc).join("; ") || "nobody";
+  const desc = (f) => {
+    const a = rosAvg(f.p);
+    return `${f.p.name} (${f.p.position}${a != null ? `, ${a.toFixed(1)} proj pts/gm` : ""})`;
+  };
   const all = [...g.found, ...r.found];
   const total = all.length;
-  const grades = gradeSummaryText(g, r, teamGive, teamGet, impact);
-  const giveNames = g.found.map((f) => f.p.name).join(", ") || "nobody";
-  const getNames = r.found.map((f) => f.p.name).join(", ") || "nobody";
-  const sideA = teamGive || "Team A (the give side)";
-  const sideB = teamGet || "Team B (the get side)";
-  // Spell out the direction so the model never says a team gains a player it is
-  // giving away: each team RECEIVES what the other team gives.
-  const direction =
-    `TRADE DIRECTION: ${sideA} gives away [${giveNames}] and receives [${getNames}]. ` +
-    `${sideB} gives away [${getNames}] and receives [${giveNames}]. `;
+  // Grades for each side, so the take agrees with the card.
+  const gt = sideTotals(g.found), rt = sideTotals(r.found);
+  const diff = +(rt.value - gt.value).toFixed(1);
+  const haveImpact = impact && impact.give && impact.get;
+  const gAvg = haveImpact ? impact.give.avg : diff;
+  const rAvg = haveImpact ? impact.get.avg : -diff;
+  const gGrade = tradeGrade(gAvg), rGrade = tradeGrade(rAvg);
+  const sign = (x) => `${x > 0 ? "+" : ""}${x}`;
+  const sideA = teamGive || "Team A (my team)";
+  const sideB = teamGet || "Team B (the other team)";
+  const givePlayers = g.found.map(desc).join("; ") || "nobody";
+  const getPlayers = r.found.map(desc).join("; ") || "nobody";
+  // Team-centric facts: each team's OWN receives and gives-up, with its grade,
+  // so the model can't attribute a player to the wrong team or direction.
   const facts =
-    direction +
-    (grades ? grades + " " : "") +
-    `PLAYER DETAILS (projected rest-of-season points per game and value over replacement): ` +
-    `${giveList}; ${getList}. ` +
+    `${sideA}: GRADE ${gGrade.grade} (${gGrade.word}, ${sign(gAvg)} starting pts/wk). ` +
+    `RECEIVES (additions): ${getPlayers}. GIVES UP (losses): ${givePlayers}.\n` +
+    `${sideB}: GRADE ${rGrade.grade} (${rGrade.word}, ${sign(rAvg)} starting pts/wk). ` +
+    `RECEIVES (additions): ${givePlayers}. GIVES UP (losses): ${getPlayers}.\n` +
     (context || "");
   const length = total <= 2 ? "two tight sentences" : "three tight sentences (about 70 words max)";
   const ask = (stern) => askOpenRouter(
-    (stern ? "IMPORTANT: your previous answer left out a player. " : "") +
-    `Give a concise take on this multi-player fantasy trade for the rest of the season, in ${length}. ` +
-    `There are ${g.found.length} player(s) on one side and ${r.found.length} on the other — you MUST name ` +
-    "EVERY one of them by name and account for each; do not omit anyone. " +
-    "Follow the TRADE DIRECTION exactly: each team RECEIVES the players the other team gives away, so never " +
-    "describe a team as gaining or upgrading with a player it is giving away. " +
-    "The COMPUTED GRADES are authoritative: your take MUST agree with them. A positive grade means the trade " +
-    "HELPS that team's starting lineup, so never call it a loss, a bloat move, or 'weaker' for a team the " +
-    "grades say gains; a negative grade means it hurts them. Judge by the starting lineup (who actually " +
-    "plays), not raw roster counts. Explain, in plain terms, why each team earns its grade.",
+    (stern ? "IMPORTANT: your previous answer left out a player or got a player's direction wrong. " : "") +
+    `Give a concise take on this fantasy trade for the rest of the season, in ${length}. Name every player once. ` +
+    "For EACH team, use ONLY its own RECEIVES and GIVES UP lists: a player in a team's RECEIVES list is an " +
+    "ADDITION for that team, and a player in its GIVES UP list is a LOSS for that team. Never describe a " +
+    "player a team receives as a loss, or one it gives up as a gain, and never attribute a player to the " +
+    "wrong team. Your take MUST match each team's GRADE: a B or A (positive) means the trade HELPS that team, " +
+    "so do not call it a loss or a bloat move; a D or F (negative) means it hurts them. Judge by the starting " +
+    "lineup (who actually plays), not raw roster counts, and explain plainly why each team earns its grade.",
     facts, env
   );
   let note = await ask(false);
