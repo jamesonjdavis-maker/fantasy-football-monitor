@@ -733,7 +733,7 @@ function valueOf(found) {
 
 function rangeStr(p) {
   const r = rosAvg(p);
-  if (r != null) return `${r} pts/gm projected (${rosWeeks(p).length} wk left)`;
+  if (r != null) return `${r.toFixed(1)} proj pts/gm (${rosWeeks(p).length} games left)`;
   const a = seasonAvg(p);
   if (p.avg_points != null && p.avg_points > 0) return `${a} pts/gm this season`;
   if (a != null) return `proj ~${a}`;
@@ -741,7 +741,7 @@ function rangeStr(p) {
 }
 
 function valStr(v) {
-  return v == null ? "" : `, value ${v > 0 ? "+" : ""}${v}`;
+  return v == null ? "" : ` · value ${v > 0 ? "+" : ""}${v}`;
 }
 
 // Sum value and per-game basis for one side of a trade.
@@ -772,10 +772,17 @@ function tradeVerdict(g, r, teamGive, teamGet) {
   if (leagues.size === 1) lines[0] += ` (${[...leagues][0]})`;
 
   const gt = sideTotals(g.found), rt = sideTotals(r.found);
-  lines.push(...sideLines(teamGive ? `${teamGive} gives` : "Give", g));
-  if (g.found.length > 1) lines.push(`→ total value ${gt.value > 0 ? "+" : ""}${gt.value} (${gt.avg} pts/gm)`);
-  lines.push(...sideLines(teamGet ? `${teamGet} gives` : "Get", r));
-  if (r.found.length > 1) lines.push(`→ total value ${rt.value > 0 ? "+" : ""}${rt.value} (${rt.avg} pts/gm)`);
+  const sub = (t, n) => `_↳ these ${n} total ${t.value > 0 ? "+" : ""}${t.value} value (${t.avg} pts/gm)_`;
+  const giveLabel = teamGive ? `📤 ${teamGive} sends away` : "📤 You send away";
+  const getLabel = teamGet ? `📤 ${teamGet} sends away` : "📥 You receive";
+
+  lines.push("");
+  lines.push(...sideLines(giveLabel, g));
+  if (g.found.length > 1) lines.push(sub(gt, g.found.length));
+  lines.push("");
+  lines.push(...sideLines(getLabel, r));
+  if (r.found.length > 1) lines.push(sub(rt, r.found.length));
+  lines.push("");
 
   if (leagues.size > 1)
     lines.push(`⚠️ Players span different leagues (${[...leagues].join(", ")}) — a trade only works within one league.`);
