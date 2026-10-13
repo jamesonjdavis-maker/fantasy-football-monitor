@@ -875,13 +875,22 @@ async function askOpenRouter(question, context, env) {
         { role: "system", content: system },
         { role: "user", content: question },
       ],
-      max_tokens: 500,
+      // Some models (e.g. Claude Haiku 5.5) think by default and can spend the
+      // whole token budget reasoning, returning empty text. This is a short
+      // summary task, so turn reasoning off and keep headroom for the answer.
+      reasoning: { enabled: false },
+      max_tokens: 1024,
       temperature: 0.4,
     }),
   });
-  if (!resp.ok) throw new Error(`OpenRouter ${resp.status}`);
+  if (!resp.ok) {
+    const body = await resp.text().catch(() => "");
+    throw new Error(`OpenRouter ${resp.status}: ${body.slice(0, 180)}`);
+  }
   const data = await resp.json();
-  return (data.choices?.[0]?.message?.content || "").trim();
+  const msg = data.choices?.[0]?.message || {};
+  // Fall back to a reasoning field if a provider puts the text there.
+  return (msg.content || msg.reasoning || "").trim();
 }
 
 // --- League context (optional, needs GITHUB_TOKEN + GITHUB_REPO) --------------
