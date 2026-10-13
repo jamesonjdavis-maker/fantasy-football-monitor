@@ -325,36 +325,69 @@ function findLeagueForTeam(snap, leagueFilter, partnerQuery) {
   return null;
 }
 
-// Pair my surplus (at a position the partner needs) with their surplus (at a
-// position I need), within a fair value band, and rank by mutual benefit.
-function buildTradeIdeas(mineBy, mineShape, theirsBy, theirsShape) {
+// All non-empty subsets of arr up to maxSize.
+function subsets(arr, maxSize) {
+  const out = [[]];
+  for (const item of arr) {
+    const n = out.length;
+    for (let i = 0; i < n; i++) {
+      if (out[i].length < maxSize) out.push(out[i].concat([item]));
+    }
+  }
+  return out.filter((s) => s.length >= 1);
+}
+
+const _POS = ["QB", "RB", "WR", "TE"];
+const sumV = (bundle) => +bundle.reduce((a, b) => a + b.v, 0).toFixed(1);
+const posSet = (bundle) => new Set(bundle.map((x) => x.pos));
+
+// Build mutually useful packages: give 1-3 of my surplus for 1-2 of their
+// surplus, value-fair, where each side gets a position it needs. Covers 1-for-1
+// up through 3-for-2.
+function buildTradeIdeas(mineShape, theirsShape) {
+  const pool = (shape) => {
+    const out = [];
+    for (const pos of _POS) for (const x of shape.surplus[pos] || []) out.push({ p: x.p, v: x.v, pos });
+    return out.sort((a, b) => b.v - a.v).slice(0, 6);  // top depth pieces, bounded
+  };
+  const mine = pool(mineShape), theirs = pool(theirsShape);
+  const myNeeds = new Set(_POS.filter((x) => mineShape.need[x] > 0));
+  const theirNeeds = new Set(_POS.filter((x) => theirsShape.need[x] > 0));
+
+  const giveBundles = subsets(mine, 3);  // send up to 3
+  const getBundles = subsets(theirs, 2); // receive up to 2
   const ideas = [];
-  for (const posGive of ["QB", "RB", "WR", "TE"]) {
-    if (theirsShape.need[posGive] <= 0) continue;        // partner must want it
-    for (const give of mineShape.surplus[posGive] || []) {
-      for (const posGet of ["QB", "RB", "WR", "TE"]) {
-        if (posGet === posGive || mineShape.need[posGet] <= 0) continue;  // I must want it
-        for (const get of theirsShape.surplus[posGet] || []) {
-          const gap = Math.abs(get.v - give.v);
-          const band = Math.max(3, 0.3 * Math.max(Math.abs(give.v), Math.abs(get.v), 1));
-          if (gap > band) continue;
-          const score =
-            theirsShape.need[posGive] + mineShape.need[posGet] - gap * 0.3 + (give.v + get.v) * 0.04;
-          ideas.push({ give: give.p, gv: give.v, get: get.p, rv: get.v, score });
-        }
-      }
+  for (const get of getBundles) {
+    if (![...posSet(get)].some((p) => myNeeds.has(p))) continue;   // must help me
+    const gt = sumV(get);
+    for (const give of giveBundles) {
+      if (![...posSet(give)].some((p) => theirNeeds.has(p))) continue;  // must help them
+      const gv = sumV(give);
+      const gap = Math.abs(gt - gv);
+      const band = Math.max(4, 0.25 * Math.max(Math.abs(gt), Math.abs(gv), 1));
+      if (gap > band) continue;
+      const needFill =
+        [...posSet(get)].filter((p) => myNeeds.has(p)).length +
+        [...posSet(give)].filter((p) => theirNeeds.has(p)).length;
+      const size = give.length + get.length;
+      const score = needFill * 2 - gap * 0.3 - size * 0.4 + (gv + gt) * 0.03;
+      ideas.push({ give, get, gv, rv: gt, score });
     }
   }
   ideas.sort((a, b) => b.score - a.score);
   const seen = new Set(), top = [];
   for (const i of ideas) {
-    const key = `${i.give.name}>${i.get.name}`;
+    const key = i.give.map((x) => x.p.name).sort().join(",") + ">" + i.get.map((x) => x.p.name).sort().join(",");
     if (seen.has(key)) continue;
     seen.add(key);
     top.push(i);
     if (top.length >= 5) break;
   }
   return top;
+}
+
+function bundleStr(bundle) {
+  return bundle.map((x) => `${x.p.name} (${x.p.position}, ${x.v > 0 ? "+" : ""}${x.v})`).join(" + ");
 }
 
 async function tradeFinderLater(interaction, partnerQuery, league, myTeamQuery, env) {
@@ -384,10 +417,9 @@ async function tradeFinderLater(interaction, partnerQuery, league, myTeamQuery, 
     }
     const theirPlayers = (plat.league_rosters || {})[partner] || [];
 
-    const mineBy = byPositionValued(myPlayers, repl);
-    const theirsBy = byPositionValued(theirPlayers, repl);
-    const mineShape = teamShape(mineBy), theirsShape = teamShape(theirsBy);
-    const ideas = buildTradeIdeas(mineBy, mineShape, theirsBy, theirsShape);
+    const mineShape = teamShape(byPositionValued(myPlayers, repl));
+    const theirsShape = teamShape(byPositionValued(theirPlayers, repl));
+    const ideas = buildTradeIdeas(mineShape, theirsShape);
 
     const lines = [`🔎 **Trade ideas: ${myName} ↔ ${partner}** (${leagueName})`];
     const needStr = (shape) => ["QB", "RB", "WR", "TE"].filter((x) => shape.need[x] > 0).join(", ") || "none pressing";
@@ -398,7 +430,8 @@ async function tradeFinderLater(interaction, partnerQuery, league, myTeamQuery, 
     } else {
       lines.push("");
       ideas.forEach((i, n) => {
-        lines.push(`**${n + 1}.** Give **${i.give.name}** (${i.give.position}, val ${i.gv > 0 ? "+" : ""}${i.gv}) ↔ Get **${i.get.name}** (${i.get.position}, val ${i.rv > 0 ? "+" : ""}${i.rv})`);
+        const totals = (i.give.length > 1 || i.get.length > 1) ? `  _(${i.gv} ↔ ${i.rv})_` : "";
+        lines.push(`**${n + 1}.** Give **${bundleStr(i.give)}** ↔ Get **${bundleStr(i.get)}**${totals}`);
       });
       lines.push("_Value = rest-of-season points/game over replacement. Ideas pair your surplus with their need and vice versa; the human side is still your call._");
       text = lines.join("\n");
@@ -414,7 +447,7 @@ async function tradeFinderLater(interaction, partnerQuery, league, myTeamQuery, 
 async function tradeFinderCommentary(myName, partner, ideas, mineShape, theirsShape, env) {
   if (!env.OPENROUTER_API_KEY || !ideas.length) return "";
   const list = ideas
-    .map((i, n) => `${n + 1}) give ${i.give.name} (${i.give.position}, ${i.gv}) for ${i.get.name} (${i.get.position}, ${i.rv})`)
+    .map((i, n) => `${n + 1}) give ${bundleStr(i.give)} for ${bundleStr(i.get)}`)
     .join("; ");
   const needs = (s) => ["QB", "RB", "WR", "TE"].filter((x) => s.need[x] > 0).join("/") || "none";
   const facts =
