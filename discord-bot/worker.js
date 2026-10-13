@@ -1040,35 +1040,42 @@ async function askOpenRouter(question, context, env) {
     "ranges in [brackets] are Monte Carlo floor-ceiling. Keep answers under ~180 " +
     "words.\n\nLEAGUE DATA:\n" + (context || "No live league data available.");
 
-  const resp = await fetch(OPENROUTER_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${env.OPENROUTER_API_KEY}`,
-      "Content-Type": "application/json",
-      "X-Title": "Fantasy Football Monitor",
-    },
-    body: JSON.stringify({
-      model: env.OPENROUTER_MODEL || DEFAULT_MODEL,
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: question },
-      ],
-      // Some models (e.g. Claude Haiku 5.5) think by default and can spend the
-      // whole token budget reasoning, returning empty text. This is a short
-      // summary task, so turn reasoning off and keep headroom for the answer.
-      reasoning: { enabled: false },
-      max_tokens: 1024,
-      temperature: 0.4,
-    }),
-  });
-  if (!resp.ok) {
-    const body = await resp.text().catch(() => "");
-    throw new Error(`OpenRouter ${resp.status}: ${body.slice(0, 180)}`);
-  }
-  const data = await resp.json();
-  const msg = data.choices?.[0]?.message || {};
-  // Fall back to a reasoning field if a provider puts the text there.
-  return (msg.content || msg.reasoning || "").trim();
+  const messages = [
+    { role: "system", content: system },
+    { role: "user", content: question },
+  ];
+  const call = async (extra) => {
+    const resp = await fetch(OPENROUTER_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${env.OPENROUTER_API_KEY}`,
+        "Content-Type": "application/json",
+        "X-Title": "Fantasy Football Monitor",
+      },
+      body: JSON.stringify({
+        model: env.OPENROUTER_MODEL || DEFAULT_MODEL,
+        messages,
+        max_tokens: 2048,  // room for the answer even if the model reasons first
+        temperature: 0.4,
+        ...extra,
+      }),
+    });
+    if (!resp.ok) {
+      const body = await resp.text().catch(() => "");
+      throw new Error(`OpenRouter ${resp.status}: ${body.slice(0, 180)}`);
+    }
+    const data = await resp.json();
+    const m = data.choices?.[0]?.message || {};
+    return (m.content || m.reasoning || "").trim();
+  };
+  // First try with reasoning off (cheaper and direct). Some models reject that
+  // or spend the whole budget thinking and return empty text, so on an error or
+  // an empty answer, retry letting the model reason normally.
+  try {
+    const out = await call({ reasoning: { enabled: false } });
+    if (out) return out;
+  } catch (_) { /* fall through to the default-reasoning retry */ }
+  return await call({});
 }
 
 // --- League context (optional, needs GITHUB_TOKEN + GITHUB_REPO) --------------
