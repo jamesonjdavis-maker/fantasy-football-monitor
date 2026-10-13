@@ -99,12 +99,23 @@ def _apply_ros_projections(player_groups: list[list[dict]], week: int, year: int
         from ..ml import matchup
     except Exception:
         return
+    try:
+        from ..ml import playerfactors
+    except Exception:
+        playerfactors = None
     through = max(1, week - 1)  # defense stats through completed weeks only
     wk = str(week)
     for group in player_groups:
         for p in group:
+            base = _baseline_pergame(p)
+            # Player/team level adjustments: role trend, efficiency regression,
+            # team pace/pass rate (constant across weeks, so applied to the level).
+            if base and playerfactors:
+                base = round(base * playerfactors.level_factor(
+                    p.get("name"), p.get("pro_team"), p.get("position"), year, through
+                ), 2)
             ros = matchup.build_ros(
-                _baseline_pergame(p), p.get("position"), p.get("pro_team"),
+                base, p.get("position"), p.get("pro_team"),
                 week, _SEASON_END_WEEK, year, through,
             )
             if not ros:
