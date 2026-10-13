@@ -972,20 +972,33 @@ async function tradeCommentary(g, r, context, env, teamGive, teamGet, impact) {
   const all = [...g.found, ...r.found];
   const total = all.length;
   const grades = gradeSummaryText(g, r, teamGive, teamGet, impact);
+  const giveNames = g.found.map((f) => f.p.name).join(", ") || "nobody";
+  const getNames = r.found.map((f) => f.p.name).join(", ") || "nobody";
+  const sideA = teamGive || "Team A (the give side)";
+  const sideB = teamGet || "Team B (the get side)";
+  // Spell out the direction so the model never says a team gains a player it is
+  // giving away: each team RECEIVES what the other team gives.
+  const direction =
+    `TRADE DIRECTION: ${sideA} gives away [${giveNames}] and receives [${getNames}]. ` +
+    `${sideB} gives away [${getNames}] and receives [${giveNames}]. `;
   const facts =
-    `GIVE side (${g.found.length} player${g.found.length === 1 ? "" : "s"}): ${giveList}. ` +
-    `GET side (${r.found.length} player${r.found.length === 1 ? "" : "s"}): ${getList}. ` +
-    (grades ? grades + " " : "") + (context || "");
+    direction +
+    (grades ? grades + " " : "") +
+    `PLAYER DETAILS (projected rest-of-season points per game and value over replacement): ` +
+    `${giveList}; ${getList}. ` +
+    (context || "");
   const length = total <= 2 ? "two tight sentences" : "three tight sentences (about 70 words max)";
   const ask = (stern) => askOpenRouter(
     (stern ? "IMPORTANT: your previous answer left out a player. " : "") +
     `Give a concise take on this multi-player fantasy trade for the rest of the season, in ${length}. ` +
-    `There are ${g.found.length} player(s) given and ${r.found.length} received — you MUST name EVERY ` +
-    "one of them by name and account for each; do not omit anyone. " +
-    "The COMPUTED GRADES in the data are authoritative: your take MUST agree with them. A positive grade " +
-    "means the trade HELPS that team's starting lineup, so never call it a loss, a bloat move, or 'weaker' " +
-    "for a team the grades say gains; a negative grade means it hurts them. Judge by the starting lineup " +
-    "(who actually plays), not raw roster counts. Explain, in plain terms, why each team earns its grade.",
+    `There are ${g.found.length} player(s) on one side and ${r.found.length} on the other — you MUST name ` +
+    "EVERY one of them by name and account for each; do not omit anyone. " +
+    "Follow the TRADE DIRECTION exactly: each team RECEIVES the players the other team gives away, so never " +
+    "describe a team as gaining or upgrading with a player it is giving away. " +
+    "The COMPUTED GRADES are authoritative: your take MUST agree with them. A positive grade means the trade " +
+    "HELPS that team's starting lineup, so never call it a loss, a bloat move, or 'weaker' for a team the " +
+    "grades say gains; a negative grade means it hurts them. Judge by the starting lineup (who actually " +
+    "plays), not raw roster counts. Explain, in plain terms, why each team earns its grade.",
     facts, env
   );
   let note = await ask(false);
