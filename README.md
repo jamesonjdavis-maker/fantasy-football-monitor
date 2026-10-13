@@ -33,10 +33,12 @@ about data pipelines, machine learning, and honest model evaluation.
   digest; busy days get the details. Everything lands in Discord.
 - **Keeps its own report card.** It logs every start/sit call it makes and grades
   it once the games are final, so I have a running record of how often it's right.
-- **Answers questions and sizes up trades.** From Discord on my phone I can ask
-  it "who should I start in the BBL this week?", pull up my whole team's
-  floor/ceiling ranges, or check a trade offer, and it answers using my actual
-  rosters and projections, including the other managers' rosters.
+- **Answers questions and works trades.** From Discord on my phone I can ask it
+  "who should I start in the BBL this week?", pull up my whole team's
+  floor/ceiling ranges, see a player's week-by-week projections for the rest of
+  the season, check a multi-player trade offer, or have it find deals with a
+  specific manager, all using my actual rosters and projections, including the
+  other managers' rosters.
 
 Under the hood it keeps every password and cookie in GitHub's encrypted secrets,
 never in the code, and runs on a free GitHub Actions schedule that commits each
@@ -64,6 +66,42 @@ projections and a public NFL history dataset (nflverse) for everything else.
   (good for their running backs); heavy underdogs throw to catch up (their
   pass-catchers get garbage-time volume). It pulls live point spreads and flags
   the players affected.
+
+## Rest-of-season projections
+
+ESPN's API only hands out a player's current-week projection and a season
+average, not a real week-by-week forecast for the rest of the year. So to answer
+"what is this player worth from here on," the tool builds its own projection for
+every remaining week. Each week starts from a per-game baseline and is then
+nudged by the things that actually move a given week, with bye weeks set to zero:
+
+- **Baseline (volume and efficiency).** A recency-weighted blend of the player's
+  per-game scoring, so a rising or fading role shows through instead of a flat
+  season number. Fantasy points already bake in a player's volume and efficiency,
+  so this is where both live.
+- **Volume trend, efficiency, and team context.** Separate, forward-looking
+  nudges from the NFL history data: whether a player's recent opportunity
+  (targets and carries) is trending up or down, a regression of unsustainable
+  efficiency back toward position norms, and how fast and pass-heavy the player's
+  own offense is.
+- **Opponent (defense vs. position).** How many points that week's opponent
+  gives up to the player's position versus the league average.
+- **Vegas game environment.** The game's implied team total (more expected
+  scoring lifts everyone) and the spread's game script (favorites help their
+  backs, underdogs help their pass-catchers). Only the near-term weeks, since
+  books do not post lines months out.
+- **Weather.** Wind, rain, and extreme cold cut into the passing game (pass
+  catchers more than backs) at outdoor stadiums, for games inside the forecast
+  window. Domes are left alone.
+- **Injuries.** A known OUT/IR/suspension zeroes the current week; doubtful and
+  questionable take a haircut.
+
+These are clearly labeled as the tool's own estimates, not ESPN's numbers. The
+far-out weeks lean mostly on the baseline and opponent, since Vegas, weather, and
+injury information only exist for the near term, and that information folds in
+automatically as each week approaches. When the current NFL season's history
+isn't published yet, the matchup data falls back to the most recent season that
+is, the same kind of prior real projection systems lean on early in a year.
 
 ## Does it actually work?
 
@@ -123,13 +161,23 @@ commands:
 - **`/ranges`**: my whole team's floor / median / ceiling for the week, straight
   from the Monte Carlo model (no AI, so it never drops a player or invents a
   number). Optionally narrowed to one league.
-- **`/trade give: … get: …`**: sizes up a trade by comparing each player's value
-  over replacement and their floor/ceiling ranges, across every team's roster in
-  the league, then gives a verdict plus a short AI take.
+- **`/trade`**: sizes up a trade on rest-of-season value. It takes **multiple
+  players per side** (`give1/give2/give3`, `get1/get2/get3`), so 2-for-1 and
+  3-for-2 deals work, and optional `team_give`/`team_get` fields so I can evaluate
+  a trade between two **other** managers as a neutral consultant. It compares each
+  side's value over replacement, warns on positional holes, and adds a short AI
+  take.
+- **`/projections`**: a player's week-by-week projected points for the rest of the
+  season (the model above), with byes flagged and a remaining total.
+- **`/tradefinder`**: give it a team to trade with and it suggests deals that help
+  both sides, pairing my surplus at their weak spot against their surplus at mine,
+  value-fair, including multi-player packages, then has the AI pick the best ones
+  to pitch.
 
-The `/ask` and `/trade` model is easy to swap with `discord-bot/set-model.sh`. The
-full walkthrough for building the bot yourself is in
-[discord-bot/SETUP.md](discord-bot/SETUP.md).
+Every player and team field has **autocomplete**, so I pick from a dropdown of my
+actual rosters and league teams instead of typing names. The `/ask` and `/trade`
+model is easy to swap with `discord-bot/set-model.sh`. The full walkthrough for
+building the bot yourself is in [discord-bot/SETUP.md](discord-bot/SETUP.md).
 
 ## Setup
 
