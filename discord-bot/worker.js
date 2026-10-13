@@ -802,22 +802,45 @@ function tradeVerdict(g, r, teamGive, teamGet) {
   return lines.join("\n");
 }
 
+// Does the note name every traded player (checked by last name)?
+function mentionsAllPlayers(note, players) {
+  const n = normName(note || "");
+  return players.every((f) => {
+    const parts = normName(f.p.name).split(" ").filter(Boolean);
+    const last = parts[parts.length - 1] || "";
+    return last && n.includes(last);
+  });
+}
+
 async function tradeCommentary(g, r, context, env) {
   if (!env.OPENROUTER_API_KEY || (!g.found.length && !r.found.length)) return "";
   const desc = (f) => `${f.p.name} (${f.p.position}, value ${valueOf(f)}, ${rangeStr(f.p)})`;
+  const giveList = g.found.map(desc).join("; ") || "nobody";
+  const getList = r.found.map(desc).join("; ") || "nobody";
+  const all = [...g.found, ...r.found];
+  const total = all.length;
   const facts =
-    `Give: ${g.found.map(desc).join("; ") || "nobody"}. ` +
-    `Get: ${r.found.map(desc).join("; ") || "nobody"}. ` +
+    `GIVE side (${g.found.length} player${g.found.length === 1 ? "" : "s"}): ${giveList}. ` +
+    `GET side (${r.found.length} player${r.found.length === 1 ? "" : "s"}): ${getList}. ` +
     (context || "");
-  return await askOpenRouter(
-    "In two or three sentences, give a plain, optimized take on this multi-player fantasy " +
-    "trade for the rest of the season. The values and points shown are projected " +
-    "rest-of-season points per game, not one-week numbers, so judge it as a rest-of-season " +
-    "deal: weigh total value, roster depth, and positional need (does it fill a hole or " +
-    "create one?). Use the roster-by-position info if given. If two teams are named, judge " +
-    "it neutrally for both sides by name and don't assume either team is the reader's.",
+  const length = total <= 2 ? "two sentences" : total <= 4 ? "three or four sentences" : "four or five sentences";
+  const ask = (stern) => askOpenRouter(
+    (stern ? "IMPORTANT: your previous answer left out a player. " : "") +
+    `Give a plain, optimized take on this multi-player fantasy trade for the rest of the season, in ${length}. ` +
+    `There are ${g.found.length} player(s) given and ${r.found.length} received — you MUST name EVERY ` +
+    "one of them by name and account for each; do not omit anyone. The values shown are projected " +
+    "rest-of-season points per game. Weigh total value, roster depth, and positional need (does it fill " +
+    "a hole or create one?). Use the roster-by-position info if given. If two teams are named, judge it " +
+    "neutrally for both sides by name and don't assume either team is the reader's.",
     facts, env
   );
+  let note = await ask(false);
+  // Safety net: if the model dropped a player, re-ask once, more sternly.
+  if (note && total > 2 && !mentionsAllPlayers(note, all)) {
+    const retry = await ask(true).catch(() => "");
+    if (retry && mentionsAllPlayers(retry, all)) note = retry;
+  }
+  return note;
 }
 
 // Edit the deferred reply with the final content (Discord content cap ~2000).
