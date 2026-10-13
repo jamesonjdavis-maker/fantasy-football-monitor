@@ -78,6 +78,21 @@ def _weekly_raw(seasons_key: tuple[int, ...]):
     return _import_weekly(list(seasons_key))
 
 
+def recent_weekly_season(year: int, max_back: int = 4):
+    """Return (DataFrame, season) for the most recent season with weekly data at
+    or before `year`, walking back up to `max_back` years. Early in a season (or
+    when nflverse hasn't published the newest seasons) the current year 404s, so
+    this finds the latest season that actually loads. (None, None) if none do."""
+    for yr in range(year, year - max_back - 1, -1):
+        try:
+            df = _weekly_raw((yr,))
+            if df is not None and len(df):
+                return df, yr
+        except Exception:
+            continue
+    return None, None
+
+
 def build_usage_frame(
     seasons: Iterable[int],
     positions: Iterable[str] = DEFAULT_POSITIONS,

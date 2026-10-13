@@ -56,8 +56,13 @@ def build_player_factors(year: int, through_week: int) -> dict:
     empty = {"players": {}, "teams": {}}
     try:
         import pandas as pd
-        from .data import _weekly_raw
-        df = _weekly_raw((year,)).copy()
+        from .data import recent_weekly_season
+        frame, season = recent_weekly_season(year)
+        if frame is None:
+            return empty
+        df = frame.copy()
+        if season != year:
+            through_week = 99  # a past season: use its whole year
     except Exception:
         return empty
     need = {"player_display_name", "position", "recent_team", "week", "fantasy_points_ppr"}
