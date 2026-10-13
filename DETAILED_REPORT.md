@@ -178,6 +178,80 @@ each team's **implied point total**, how many points Vegas expects them to score
 as (game total minus the team's spread) divided by two. That number feeds the
 game-script flags and the start/sit tie-breaker.
 
+The odds come from each game's summary endpoint on ESPN's public API (its
+`pickcenter`), which is where ESPN moved the betting lines after dropping them from
+the scoreboard feed. The lines power both the start/sit tie-breaker and the Vegas
+layer of the projection model below.
+
+### Rest-of-season weekly projections (the layered model)
+
+A trade or a long-term roster call is about what a player is worth from here to the
+end of the season, not this week. The problem: ESPN's API only exposes a player's
+current-week projection and a season average, never a real week-by-week forecast
+for the rest of the year (I confirmed this by requesting future scoring periods
+directly, which just return the season average). So the tool computes its own
+rest-of-season line for every remaining week.
+
+It is a **layered model**: a per-game baseline, multiplied by a set of clamped
+factors, with each layer capturing one thing and only one thing, so nothing is
+double-counted. The code lives in `ffmonitor/ml/matchup.py` (the per-week factors),
+`ffmonitor/ml/playerfactors.py` (the player and team season factors), and
+`ffmonitor/ml/weather.py` (the weather factor), and the result is attached to every
+player in the snapshot as `ros_proj` by `ffmonitor/platforms/espn.py`.
+
+**The baseline** is a recency-weighted blend of the player's per-game fantasy
+points (about two-thirds season, one-third last three games). Fantasy points are
+already the product of a player's volume and efficiency, so the baseline is where
+both of those live; the recency weighting lets a changed role or a hot/cold streak
+move the number instead of a flat season average.
+
+**The level factors** (roughly constant across weeks, so they scale the baseline)
+come from the NFL history data:
+
+- **Volume / role trend:** recent opportunity (targets plus carries, or pass
+  attempts for QBs) versus the season, so a rising role nudges up and a shrinking
+  one down. This is forward-looking in a way raw points are not, because role leads
+  production.
+- **Efficiency regression:** a player's points per opportunity pulled part of the
+  way back toward the norm for their position, so a touchdown-heavy hot start does
+  not project forward as if it will continue.
+- **Team pace and pass rate:** a fast or pass-heavy offense lifts its pass catchers
+  (and a run-heavy one its backs), measured as the team's plays and pass rate
+  versus the league.
+
+**The weekly factors** (what actually makes each week differ) are:
+
+- **Opponent, defense vs. position:** how many fantasy points that week's opponent
+  allows to the player's position per game, divided by the league average, clamped
+  so no single matchup is absurd.
+- **Vegas game environment:** the team's implied total (more expected scoring lifts
+  everyone) and a position-specific game-script nudge from the spread (favorites
+  help their backs, underdogs help their pass catchers). Near-term only, since
+  books do not post lines months out.
+- **Weather:** wind, precipitation, and extreme cold at outdoor stadiums cut into
+  the passing game, pass catchers more than backs, using the free Open-Meteo
+  forecast for games inside its window. Domes and far-out games are untouched.
+- **Injury:** a known OUT, IR, PUP, or suspension zeroes the current week; doubtful
+  and questionable take a haircut. Status only speaks to the current week, so that
+  is the only week it touches.
+- **Bye weeks** are set to zero.
+
+Two honesty points matter. First, these are clearly **labeled as the tool's own
+estimates**, not ESPN's numbers. Second, the far-out weeks necessarily lean mostly
+on the baseline and the opponent, because Vegas lines, weather forecasts, and
+injury statuses only exist for the near term; that information folds in on its own
+as each week approaches.
+
+**A data-availability wrinkle:** the matchup and player/team factors need recent
+weekly NFL stats, and nflverse does not always have the current (or even the most
+recent) season published yet. So the tool walks back to the most recent season
+whose weekly data actually loads and uses that as the prior. Last season's
+defensive tendencies are a sound starting point before the new season has enough
+games, which is the same thing real projection systems do early in a year. A small
+`proj_meta` block is written into each snapshot recording which data layers loaded
+and which season the matchup data came from, so a flat or missing layer is easy to
+diagnose instead of silently wrong.
+
 ## 7. Proving it works (backtesting and model quality)
 
 The most important part: I measured the tool instead of just claiming it was smart.
@@ -307,17 +381,27 @@ Discord calls when I use a slash command. It does four things:
    calling an AI model takes longer), then does the real work in the background.
 4. **Fetches my latest league data** from the repo and answers back in the channel.
 
-There are three commands:
+There are five commands:
 
 - **`/ask`** sends my question, plus a compact summary of my rosters and
   projections, to an AI model through OpenRouter, and posts the answer.
 - **`/ranges`** lists my whole team's floor/median/ceiling for the week, computed
   directly from the snapshot with no AI, so it can never drop a player or invent a
   number.
-- **`/trade`** compares two players (see the next section).
+- **`/trade`** evaluates a trade, with multiple players per side (see the next
+  section).
+- **`/projections`** prints a player's week-by-week projected points for the rest
+  of the season, straight from the layered model, with byes flagged and a remaining
+  total.
+- **`/tradefinder`** takes a team to trade with and suggests deals that help both
+  sides (see the next section).
 
-The AI model is swappable in a single command via `set-model.sh`, which edits the
-config and redeploys.
+Every player and team field uses Discord's **autocomplete**, so the options come
+from a live dropdown of my actual rosters and league teams. Because a completed
+pick replaces the whole field, the multi-player trade inputs use numbered slots
+(`give1`, `give2`, and so on) rather than one comma-separated box, which is what
+autocomplete supports cleanly. The AI model is swappable in a single command via
+`set-model.sh`, which edits the config and redeploys.
 
 ## 11. Trade evaluation
 
@@ -327,10 +411,31 @@ team's roster (this data was already being read to filter free agents, so it cos
 nothing extra), and the Monte Carlo ranges were extended to cover all of those
 players too.
 
-The `/trade give: X get: Y` command then finds both players anywhere in the league,
-computes each one's value over replacement and floor/ceiling range, and gives a
-verdict on which side wins and by how much, plus a short AI take on the fit. It is
-honest about its limits: it judges value on paper and can't read the other
+The `/trade` command finds the players anywhere in the league, computes each one's
+value over replacement, and gives a verdict on which side wins and by how much,
+plus a short AI take on the fit. The value is now based on the **rest-of-season
+projection** from the layered model (per-game projected points over a
+replacement-level player at that position), not a single week, because a trade is a
+rest-of-season decision. Replacement level is computed on the same rest-of-season
+basis from the free-agent pool, so the comparison stays apples-to-apples.
+
+Three things were added on top of the original one-for-one version:
+
+- **Multiple players per side.** Each side takes up to three players (`give1..give3`,
+  `get1..get3`), so 2-for-1 and 3-for-2 deals work. The verdict totals each side and
+  reports the net.
+- **Consulting on other managers' trades.** Optional `team_give` and `team_get`
+  fields name the two teams involved, so a trade between two other managers is
+  judged neutrally by team name ("favors Team A") instead of assuming one side is
+  mine, and both teams' positional depth is fed to the AI.
+- **A trade finder.** `/tradefinder` takes a partner team and proposes deals that
+  help both sides. It measures each team's weak spots (a thin starter at a position)
+  and its surplus depth, then pairs my depth at their weak spot against their depth
+  at mine, within a fair value band, and ranks by how much each lineup improves. It
+  proposes multi-player packages as well as one-for-ones, and the AI picks the best
+  couple to actually pitch.
+
+It stays honest about its limits: it judges value on paper and can't read the other
 manager's mind.
 
 ## 12. Engineering practices
@@ -364,6 +469,18 @@ manager's mind.
   land closer to the target time.
 - **Trade data not present.** The bot couldn't see other teams until the snapshot
   was extended to store all rosters and the monitor was re-run to refresh the data.
+- **No future-week projections from ESPN.** The API only returns the current week's
+  projection and a season average, which first showed up as flat, identical weekly
+  numbers. The fix was to stop asking ESPN for future weeks and build the layered
+  model instead.
+- **nflverse 404s on the newest seasons.** The weekly-stats source returned a 404
+  for the current and most recent season, which quietly emptied every matchup and
+  usage factor and flattened the projections. Fixed by walking back to the most
+  recent season that loads, with a `proj_meta` diagnostic in the snapshot so an
+  empty layer is visible rather than silent.
+- **ESPN moved the betting lines.** Odds disappeared from the scoreboard feed, so
+  the odds signal silently loaded zero teams. Fixed by reading each game's line from
+  its summary `pickcenter` endpoint instead.
 
 ## 14. Honest limitations
 
@@ -373,6 +490,14 @@ manager's mind.
 - Football is high-variance, so no tool can call two closely matched players
   reliably; that ceiling is real.
 - The trade evaluator judges paper value only.
+- The rest-of-season weekly projections are the tool's own estimates, not ESPN's.
+  ESPN does not expose a real future-week forecast, so the tool models one; the
+  far-out weeks in particular lean on the baseline and opponent because Vegas,
+  weather, and injury information only exist for the near term.
+- The matchup and usage factors depend on recent weekly NFL stats, which the free
+  data source does not always have for the current or most recent season. When that
+  happens the tool falls back to the most recent season that is published, so early
+  in a year those factors reflect last season's tendencies rather than this one.
 - The richest current-season usage signals aren't on free data feeds, which caps
   how far the models can go without paying for data.
 
