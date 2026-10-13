@@ -520,7 +520,8 @@ function findWithProjections(snap, query, leagueFilter) {
   return fallback;
 }
 
-const _OUT_STATUSES = new Set(["OUT", "IR", "SUSPENDED", "PUP"]);
+// How many upcoming weeks each status zeroes out (mirrors the collector).
+const _INJURY_WEEKS = { OUT: 1, SUSPENDED: 2, IR: 4, PUP: 4 };
 
 function projectionLines(hit) {
   const p = hit.p;
@@ -534,15 +535,20 @@ function projectionLines(hit) {
     return msg;
   }
   const curWeek = hit.week;
-  const outNow = _OUT_STATUSES.has(p.injury_status);
+  const outWeeks = _INJURY_WEEKS[p.injury_status] || 0;  // weeks zeroed by injury
+  const inOutWindow = (w) => outWeeks && w >= curWeek && w < curWeek + outWeeks;
   const lines = [header];
-  if (outNow) lines.push(`⚠️ Currently ${p.injury_status} — this week is zeroed out.`);
+  if (outWeeks) {
+    lines.push(outWeeks > 1
+      ? `⚠️ Currently ${p.injury_status} — the next ${outWeeks} weeks are zeroed out (expected multi-week absence).`
+      : `⚠️ Currently ${p.injury_status} — this week is zeroed out.`);
+  }
   let sum = 0, n = 0;
   for (const w of weeks) {
     const v = ros[String(w)];
     if (typeof v === "number" && v === 0) {
-      // A zero is the player's bye, unless it's the current week and they're OUT.
-      const label = (w === curWeek && outNow) ? `(${p.injury_status.toLowerCase()})` : "(bye)";
+      // A zero is the player's bye, unless it falls in their injury window.
+      const label = inOutWindow(w) ? `(${p.injury_status.toLowerCase()})` : "(bye)";
       lines.push(`Week ${w}: — ${label}`);
     } else {
       lines.push(`Week ${w}: ${v}`);
@@ -791,7 +797,7 @@ function tradeVerdict(g, r, teamGive, teamGet) {
     } else {
       lines.push(`**Verdict:** you'd give up about ${Math.abs(diff)} points of value-over-replacement.`);
     }
-    lines.push("_Value = projected rest-of-season points per game minus a replacement-level player at that position. Depth, positional need, injuries, and the human side of the deal are still a judgment call._");
+    lines.push("_Value = projected rest-of-season points per game (ESPN's forward outlook, so it already reflects expected role and injuries, including a long-term absence) minus a replacement-level player at that position. Roster depth, positional need, and the human side of the deal are still your call._");
   }
   return lines.join("\n");
 }

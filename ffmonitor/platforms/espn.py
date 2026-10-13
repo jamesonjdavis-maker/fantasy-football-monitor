@@ -113,11 +113,18 @@ def _baseline_pergame(p: dict) -> float | None:
     return p.get("proj_points")
 
 
-# How much a known injury status discounts THIS week's projection (status only
-# speaks to the current week; we don't guess future availability).
-_INJURY_WEEK_FACTOR = {
-    "OUT": 0.0, "IR": 0.0, "SUSPENDED": 0.0, "PUP": 0.0,
-    "DOUBTFUL": 0.35, "QUESTIONABLE": 0.9,
+# How a known injury status discounts upcoming weeks: (weeks_affected, factor).
+# Short-term designations (out/doubtful/questionable) touch only the current week,
+# since the player could be back the next. Season-long ones (IR, PUP, suspension)
+# are known multi-week absences, so they zero the minimum stretch a player is out
+# (IR is at least four games); we don't guess an exact return beyond that.
+_INJURY_IMPACT = {
+    "OUT": (1, 0.0),
+    "DOUBTFUL": (1, 0.35),
+    "QUESTIONABLE": (1, 0.9),
+    "SUSPENDED": (2, 0.0),
+    "IR": (4, 0.0),
+    "PUP": (4, 0.0),
 }
 
 
@@ -169,9 +176,13 @@ def _apply_ros_projections(player_groups: list[list[dict]], week: int, year: int
             )
             if not ros:
                 continue
-            mult = _INJURY_WEEK_FACTOR.get(p.get("injury_status"))
-            if mult is not None and wk in ros:
-                ros[wk] = round(ros[wk] * mult, 2)
+            impact = _INJURY_IMPACT.get(p.get("injury_status"))
+            if impact:
+                weeks_out, factor = impact
+                for i in range(weeks_out):
+                    key = str(week + i)
+                    if key in ros:
+                        ros[key] = round(ros[key] * factor, 2)
             p["ros_proj"] = ros
 
 
