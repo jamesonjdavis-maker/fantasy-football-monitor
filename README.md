@@ -435,7 +435,9 @@ Several things were added on top of the original one-for-one version:
 - **Multiple players per side.** Each side takes up to three players (`give1..give3`,
   `get1..get3`), so 2-for-1 and 3-for-2 deals work. The card labels each side clearly
   ("you send away" / "you receive", or the two team names) and shows a subtotal under
-  each so it's obvious which players the number refers to.
+  each so it's obvious which players the number refers to. Each player's line also shows
+  his weekly floor-to-ceiling range in brackets, for example `[7.9-30.5]`, so the spread
+  the value and grade tilt toward (the upside tilt above) is visible at a glance.
 - **Consulting on other managers' trades.** Optional `team_give` and `team_get`
   fields name the two teams involved, so a trade between two other managers is
   judged neutrally by team name instead of assuming one side is mine, and both teams'

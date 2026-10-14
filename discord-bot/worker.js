@@ -968,6 +968,15 @@ function valStr(v) {
   return v == null ? "" : ` · value ${v > 0 ? "+" : ""}${v}`;
 }
 
+// Each player's weekly Monte Carlo floor-to-ceiling range, shown on the trade card
+// so the spread the value tilts toward (see upsideFactor / CEILING_TILT) is visible.
+// Empty when the player has no range in the snapshot.
+function rangeBracket(p) {
+  const f = p.proj_floor, c = p.proj_ceiling;
+  if (f == null || c == null) return "";
+  return ` [${f}-${c}]`;
+}
+
 // Sum value and per-game basis for one side of a trade.
 function sideTotals(found) {
   let value = 0, avg = 0, hasValue = false;
@@ -984,7 +993,7 @@ function sideLines(label, side) {
   const lines = [`**${label}:**`];
   for (const f of side.found) {
     const team = f.p.pro_team ? ", " + f.p.pro_team : "";
-    lines.push(`• ${f.p.name} (${f.p.position}${team}) — ${rangeStr(f.p)}${valStr(valueOf(f))}`);
+    lines.push(`• ${f.p.name} (${f.p.position}${team}) — ${rangeStr(f.p)}${rangeBracket(f.p)}${valStr(valueOf(f))}`);
   }
   for (const name of side.missing) lines.push(`• ⚠️ couldn't find "${name}"`);
   return lines;
@@ -1007,6 +1016,12 @@ function tradeVerdict(g, r, teamGive, teamGet, impact) {
   lines.push(...sideLines(getLabel, r));
   if (r.found.length > 1) lines.push(sub(rt, r.found.length));
   lines.push("");
+
+  const hasRange = [...g.found, ...r.found].some((f) => f.p.proj_floor != null && f.p.proj_ceiling != null);
+  if (hasRange) {
+    lines.push("_[floor-ceiling] is each player's weekly range (Monte Carlo); value and grade already tilt a little toward the higher ceiling._");
+    lines.push("");
+  }
 
   if (leagues.size > 1)
     lines.push(`⚠️ Players span different leagues (${[...leagues].join(", ")}) — a trade only works within one league.`);
