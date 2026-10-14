@@ -68,7 +68,12 @@ const TRADE_TUNING = {
 
   // --- Trade finder: proposing deals (need-first, unlike the analyzer) ---
   STARTERS: { QB: 1, RB: 2, WR: 2, TE: 1 }, // typical startable depth per position
-  NEED_BAR: 2,            // a weakest starter at/below this value = a real need
+  // A position is a real need only when your weakest starter's value OVER
+  // REPLACEMENT is at or below this. 0 means "no better than a freely available
+  // player" (or an empty slot). Kept at 0 so a deep, streamable position like QB
+  // is not false-flagged: a fine starting QB has low value over replacement simply
+  // because waiver QBs are plentiful, which is not a reason to trade for one.
+  NEED_BAR: 0,
   SET_POS_DISCOUNT: 0.2,  // upgrades at a position you're already set at count this fraction
   MIN_GAIN: 0.5,          // a proposed deal must improve each team's lineup by at least this
   FAIR_BAND: 0.25,        // allowed value gap = max(FAIR_FLOOR, this * the bigger side)

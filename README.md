@@ -565,10 +565,16 @@ trade you asked about.
 ones worth pitching. If it scored every upgrade the way the analyzer does, it would keep
 offering you a slightly better quarterback when your quarterback is already fine, which
 is useless advice ("why are you telling me to trade for a QB? I don't need a QB"). So the
-finder is deliberately **need-first**. It finds each team's weak spots, where the weakest
-player it would have to start at a position is below a set bar, and an upgrade that lands
-at a weak spot counts in full, while an upgrade at a position the team is already set at
-counts at a steep discount (currently one fifth). The result is that genuine need-fills
+finder is deliberately **need-first**. It finds each team's weak spots, defined as a
+position where the weakest player it would have to start is no better than a freely
+available waiver player (its value over replacement is at or below zero) or the slot is
+empty. That replacement-relative bar matters: a deep, streamable position like quarterback
+has a high replacement level, so a perfectly good starting QB still shows a low value over
+replacement, and a flat points bar would wrongly flag it as a need. It is not one; in a
+one-quarterback league you start your QB and stream on bye or injury weeks rather than
+trading for another. An upgrade that lands at a true weak spot counts in full, while an
+upgrade at a position the team is already set at counts at a steep discount (currently one
+fifth). The result is that genuine need-fills
 always rank well above marginal upgrades, so the finder stops suggesting a position you
 do not need and leads with deals that fix an actual hole on both sides. The bar and the
 discount are two named constants in the `TRADE_TUNING` block (see "Where the tunable
