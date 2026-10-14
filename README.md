@@ -501,6 +501,20 @@ streak, while a big gap between projection and recent play is tempered partway t
 reality. A known multi-week absence (IR, PUP, a suspension) zeroes out the weeks the
 player is expected to miss.
 
+That per-game value also carries a small tilt toward upside. Expected points still do
+almost all of the work, but a player with real boom potential is worth a little more than
+a steady player with the same mean, so the tilt breaks ties toward the higher ceiling. It
+is measured from the player's own Monte Carlo range as the ratio of ceiling to median, so
+it is scale-independent and rewards how volatile a player is rather than his raw score: a
+player whose ceiling is far above his median gets the full nudge, a steady one gets almost
+none, and a low ceiling is never penalized below the mean. The effect is capped (at a
+ceiling of twice the median) and controlled by one tilt constant, currently fifteen
+percent. Because replacement level is computed on this same tilted basis, value over
+replacement stays apples-to-apples; it is the extra lift that high-ceiling players get
+over steady ones that actually moves the comparison. This tilt feeds the value shown on
+the card and the finder's rankings; the week-by-week starting-lineup grade itself still
+runs on the mean projection.
+
 ### The plain-English summary and the AI take
 
 Below the graded card, a follow-up message explains the deal in words. It leads with a

@@ -888,11 +888,29 @@ function rosAvg(p) {
   return +(vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(2);
 }
 
+// How much a player's boom upside nudges trade value. Small on purpose: expected
+// points still drive a trade; this only breaks ties toward the higher ceiling.
+const CEILING_TILT = 0.15;
+
 // The per-game basis a trade is judged on: rest-of-season projection first
-// (forward-looking is what matters for a trade), then season-to-date average.
+// (forward-looking is what matters for a trade), then season-to-date average,
+// then a small tilt toward upside. The tilt rewards boom potential, so a volatile
+// high-ceiling player is worth a little more than a steady one with the same mean.
+// It uses the ceiling/median RATIO, so it is scale-independent (the ceiling is a
+// single-week figure, the base is a rest-of-season mean), only ever adds value
+// (a low ceiling is never penalized below the mean), and is capped at a ceiling of
+// twice the median. Replacement level is computed on this same basis, so
+// value-over-replacement stays apples-to-apples.
 function tradeBasis(p) {
   const r = rosAvg(p);
-  return r != null ? r : seasonAvg(p);
+  const base = r != null ? r : seasonAvg(p);
+  if (base == null) return null;
+  const c = p.proj_ceiling, m = p.proj_median;
+  if (c != null && m != null && m > 0) {
+    const upside = Math.min(1, Math.max(0, c / m - 1));  // 0 (steady) .. 1 (ceiling >= 2x median)
+    return +(base * (1 + CEILING_TILT * upside)).toFixed(2);
+  }
+  return +(+base).toFixed(2);
 }
 
 function valueOf(found) {
