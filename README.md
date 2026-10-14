@@ -115,7 +115,10 @@ These checks look at today's snapshot alone (no history needed) and produce flag
 **Start/sit.** For each bench player, the tool looks for a starter it could
 legally replace and is projected to beat. "Legally" matters: the tool knows each
 starter's exact lineup slot, so it will suggest a wide receiver for a flex slot but
-never for a required tight-end slot. It only flags when the bench player is
+never for a required tight-end slot. The projection it compares on is not ESPN's raw
+weekly number but the layered-model median (the Monte Carlo center, which reflects
+defense, Vegas, weather, and the ESPN/form blend), so the comparison uses the best
+estimate available rather than the raw feed. It only flags when the bench player is
 projected to beat the starter by a set margin (2 points by default), which focuses
 attention on decisions that actually matter. On close calls, it adds a tie-breaker
 from the Vegas game environment: if the bench player's team is expected to score
@@ -153,6 +156,15 @@ A single projected number hides risk. The tool turns each projection into a rang
 The clever part: because the outcome is projection times multiplier, the floor and
 ceiling can be read directly from the multiplier percentiles, which makes it fast
 and exact.
+
+The projection the range is built around is not ESPN's raw weekly number but the
+tool's own **layered current-week projection** (the one described under "the layered
+model" below, which already folds in defense-vs-position, Vegas, weather, and the
+ESPN/form blend). Because the simulation scales the spread proportionally to that
+center, using the sharper center sharpens the whole range without changing its
+boom/bust shape, so the floor, median, and ceiling everything downstream relies on
+(start/sit range notes, the trade range shown on the card, and the risk blend in
+trade value) all reflect the full model rather than a raw projection.
 
 ### Value over replacement
 

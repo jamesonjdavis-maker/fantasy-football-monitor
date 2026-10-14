@@ -111,7 +111,10 @@ These checks look at today's snapshot alone (no history needed) and produce flag
 **Start/sit.** For each bench player, the tool looks for a starter it could
 legally replace and is projected to beat. "Legally" matters: the tool knows each
 starter's exact lineup slot, so it will suggest a wide receiver for a flex slot but
-never for a required tight-end slot. It only flags when the bench player is
+never for a required tight-end slot. The projection it compares on is not ESPN's raw
+weekly number but the layered-model median (the Monte Carlo center, which reflects
+defense, Vegas, weather, and the ESPN/form blend), so the comparison uses the best
+estimate available rather than the raw feed. It only flags when the bench player is
 projected to beat the starter by a set margin (2 points by default), which focuses
 attention on decisions that actually matter. On close calls, it adds a tie-breaker
 from the Vegas game environment: if the bench player's team is expected to score
@@ -149,6 +152,15 @@ A single projected number hides risk. The tool turns each projection into a rang
 The clever part: because the outcome is projection times multiplier, the floor and
 ceiling can be read directly from the multiplier percentiles, which makes it fast
 and exact.
+
+The projection the range is built around is not ESPN's raw weekly number but the
+tool's own **layered current-week projection** (the one described under "the layered
+model" below, which already folds in defense-vs-position, Vegas, weather, and the
+ESPN/form blend). Because the simulation scales the spread proportionally to that
+center, using the sharper center sharpens the whole range without changing its
+boom/bust shape, so the floor, median, and ceiling everything downstream relies on
+(start/sit range notes, the trade range shown on the card, and the risk blend in
+trade value) all reflect the full model rather than a raw projection.
 
 ### Value over replacement
 
@@ -199,11 +211,19 @@ double-counted. The code lives in `ffmonitor/ml/matchup.py` (the per-week factor
 `ffmonitor/ml/weather.py` (the weather factor), and the result is attached to every
 player in the snapshot as `ros_proj` by `ffmonitor/platforms/espn.py`.
 
-**The baseline** is a recency-weighted blend of the player's per-game fantasy
-points (about two-thirds season, one-third last three games). Fantasy points are
-already the product of a player's volume and efficiency, so the baseline is where
-both of those live; the recency weighting lets a changed role or a hot/cold streak
-move the number instead of a flat season average.
+**The baseline** is a per-game scoring level for the rest of the season. It blends
+ESPN's forward-looking projected average (75%) with the player's own realized form
+(25%). ESPN's projected average is the sharper anchor because their analysts fold
+in role, depth-chart, and injury news that free data can't see, so it doesn't lag a
+slow start the way a raw season average does (a back returning from injury is
+projected near his real level, not the handful of quiet games he has actually
+played). The 25% realized-form term pulls a big gap between projection and reality
+partway back toward what is actually happening on the field, in both directions: a
+player ESPN projects well above his recent play gets tempered down, and one
+outscoring his projection gets nudged up, without gutting a genuine bounce-back.
+This blend is the one place the overall *level* leans on ESPN; everything else
+below, the week-to-week movement, is computed here. The two blend weights live in a
+`PROJECTION TUNING` block at the top of `ffmonitor/platforms/espn.py`.
 
 **The level factors** (roughly constant across weeks, so they scale the baseline)
 come from the NFL history data:
@@ -388,8 +408,8 @@ There are five commands:
 - **`/ranges`** lists my whole team's floor/median/ceiling for the week, computed
   directly from the snapshot with no AI, so it can never drop a player or invent a
   number.
-- **`/trade`** evaluates a trade, with multiple players per side (see the next
-  section).
+- **`/trade`** evaluates a trade, with multiple players per side, and grades each
+  team on how its actual starting lineup changes week by week (see the next section).
 - **`/projections`** prints a player's week-by-week projected points for the rest
   of the season, straight from the layered model, with byes flagged and a remaining
   total.
@@ -419,24 +439,173 @@ replacement-level player at that position), not a single week, because a trade i
 rest-of-season decision. Replacement level is computed on the same rest-of-season
 basis from the free-agent pool, so the comparison stays apples-to-apples.
 
-Three things were added on top of the original one-for-one version:
+Several things were added on top of the original one-for-one version:
 
 - **Multiple players per side.** Each side takes up to three players (`give1..give3`,
-  `get1..get3`), so 2-for-1 and 3-for-2 deals work. The verdict totals each side and
-  reports the net.
+  `get1..get3`), so 2-for-1 and 3-for-2 deals work. The card labels each side clearly
+  ("you send away" / "you receive", or the two team names) and shows a subtotal under
+  each so it's obvious which players the number refers to. Each player's line also shows
+  his weekly floor-to-ceiling range in brackets, for example `[7.9-30.5]`, so the spread
+  the value and grade blend in (the risk blend above) is visible at a glance.
 - **Consulting on other managers' trades.** Optional `team_give` and `team_get`
   fields name the two teams involved, so a trade between two other managers is
-  judged neutrally by team name ("favors Team A") instead of assuming one side is
-  mine, and both teams' positional depth is fed to the AI.
+  judged neutrally by team name instead of assuming one side is mine, and both teams'
+  rosters are used to grade it.
 - **A trade finder.** `/tradefinder` takes a partner team and proposes deals that
   help both sides. It measures each team's weak spots (a thin starter at a position)
   and its surplus depth, then pairs my depth at their weak spot against their depth
   at mine, within a fair value band, and ranks by how much each lineup improves. It
   proposes multi-player packages as well as one-for-ones, and the AI picks the best
-  couple to actually pitch.
+  couple to actually pitch. See "The finder is not the analyzer" below for how it
+  differs from `/trade`.
 
-It stays honest about its limits: it judges value on paper and can't read the other
-manager's mind.
+### Grading a trade by what you actually start
+
+The interesting part is how a trade is graded. The obvious measure, total value sent
+versus received, is misleading for two reasons. First, it is zero-sum: whatever value
+one side gains, the other loses by the same amount, so the two grades would always be
+mirror images. Second, and more important, you only start a fixed lineup, so a bench
+player you would never play is worth almost nothing to your weekly score, and trading
+three role players for one star starter can be a clear win even though the raw point
+totals say you came out behind.
+
+So each team is graded on the change to the lineup it would actually start, computed
+week by week:
+
+- For every remaining week, the tool rebuilds that team's best legal starting lineup
+  (QB, RB, WR, TE, and FLEX, from the league's real settings) using that week's
+  projection, and sums the starters.
+- It does this for the roster before the trade and after it, and takes the difference.
+- A player on a bye or injured that week counts as zero, so he can't prop up the
+  lineup in a week he wouldn't play. Depth that never cracks the starting lineup
+  barely moves the grade; landing one player who bumps a weak starter moves it a lot.
+
+The grade is the average of those weekly changes, on a plain A-to-F scale, and the
+card also reports the total points gained or lost over the rest of the season and
+flags the roughest single week (usually a bye or injury collision). Because each team
+optimizes its own lineup, the grades are **not** mirror images: a smart deal where
+each side trades from a strength into a need can grade well for both, while a lopsided
+one shows the real gap.
+
+On top of that starting-lineup number, the grade folds in a small weight for bench
+depth, because the lineup you start today is not the only thing that matters: injuries
+and byes mean you want enough quality bodies behind your starters. Depth is measured as
+the change in the value of the players a team would **not** start (its full roster value
+minus its optimal starting value). Gaining a useful extra body, as in a two-for-three
+deal, earns a small bonus; consolidating several players into one star, as in a
+three-for-two, takes a small ding for the roster spot and insurance it costs. This depth
+effect is deliberately minor and is **clamped to plus or minus one point per week**, so
+it can only nudge a grade that sits near a boundary; it can never outweigh the starting
+lineup, which is still what mostly decides the trade. The card shows it alongside the
+starters line, for example `starters +1.2 pts/wk (+8.4 over 7 wk, depth +0.8)`. The two
+constants that control it, the depth weight and the cap, live at the top of the trade
+logic and are easy to retune.
+
+The underlying value still uses the rest-of-season projection from the layered model
+(per-game projected points over a replacement-level player at that position, with
+replacement computed on the same basis from the free-agent pool). Because that
+baseline leans mostly on ESPN's forward-looking projected average (blended with the
+player's realized form), it already reflects a player's expected role and injuries,
+so a player riding a temporary spike (for example, a receiver producing only because
+a teammate is hurt) is valued on what he is expected to do going forward, not his hot
+streak, while a big gap between projection and recent play is tempered partway toward
+reality. A known multi-week absence (IR, PUP, a suspension) zeroes out the weeks the
+player is expected to miss.
+
+That per-game value is not just the mean, and it is not just the floor or the ceiling:
+it is a risk-adjusted blend of all three. The mean (which, as above, already blends ESPN's
+projection, realized form, defense, Vegas, weather and injuries) is the base, and the
+shape of the player's Monte Carlo range then nudges it. Upside above the median adds value
+and downside below the median subtracts it, each measured as a ratio to the median so the
+nudge is scale-independent and reacts to how volatile a player is rather than his raw
+score. A steady player with a tight range stays right at his mean; a boom player whose
+ceiling towers over his median gains; a bust-risk player whose floor sits well below it
+loses. Because fantasy scoring is right-skewed (ceilings run further above the median than
+floors run below), most players get a small net boost, but a safe high-floor player and a
+volatile low-floor player with the same mean no longer look identical, which was the whole
+point. The two weights (one for upside, one for downside) and the cap that keeps the whole
+adjustment within a modest band are three named constants in the config block, so the
+blend is easy to retune, and setting both weights to zero falls back to the pure mean.
+
+Because replacement level is computed on this same blended basis, value over replacement
+stays apples-to-apples. The same factor is applied everywhere a trade values a player: the
+value shown on the card, the finder's rankings, and the week-by-week starting-lineup grade
+itself, where each week's projection is scaled by the player's blend factor before the
+optimal lineup is rebuilt. Because the grade is a difference between the lineup before and
+after the trade, the shared part cancels and what remains is the relative edge the range
+gives, so acquiring boom potential or safe production helps the grade a little and shipping
+it away costs a little.
+
+### The plain-English summary and the AI take
+
+Below the graded card, a follow-up message explains the deal in words. It leads with a
+**summary written entirely by code** from the computed numbers: for each team, what it
+adds, what it gives up, its grade, and its lineup change, for example "Staff infection
+upgrades its starting lineup, B (+1.2 starting pts/wk, +0.8 depth). Adds Rice, Odunze,
+and Skattebo; gives up Adams and Dowdle." Because these sentences are assembled straight
+from the data rather than generated, they **cannot** flip who gets whom, call a player a
+team receives a loss, or contradict the grades. This is the source of truth.
+
+Underneath that, an AI model adds a short plain-English take for color. The deterministic
+card and summary never depend on the model, so a weak or cheap model can only affect the
+flavor text, not the numbers or the factual summary above it. Two guardrails keep the AI
+prose honest as well: it is fed each team's own additions and losses with its grade, told
+to treat a received player as a gain and never attribute a player to the wrong team, and
+the code checks the result and re-asks if a player was dropped. The summary and take are
+sent as their own follow-up message so a long card and a long write-up never share a
+single message's length limit and get cut off.
+
+It stays honest about its limits: it grades the lineup you would optimally start, not
+the one you actually set each week, and it can't read the other manager's mind.
+
+### The finder is not the analyzer
+
+`/trade` and `/tradefinder` look similar because they share the same projections,
+replacement levels, and value math, but they answer different questions, and they
+should not behave the same way.
+
+`/trade` is an **analyzer**. You already have a specific deal in mind, and it grades
+that deal: it tells you whether this exact set of players going each way helps or hurts
+each team's starting lineup. It scores whatever you hand it, including an upgrade at a
+position you are already strong at, because that is a real (if minor) effect of the
+trade you asked about.
+
+`/tradefinder` is a **proposer**. Nobody asked about a specific deal; it has to invent
+ones worth pitching. If it scored every upgrade the way the analyzer does, it would keep
+offering you a slightly better quarterback when your quarterback is already fine, which
+is useless advice ("why are you telling me to trade for a QB? I don't need a QB"). So the
+finder is deliberately **need-first**. It finds each team's weak spots, defined as a
+position where the weakest player it would have to start is no better than a freely
+available waiver player (its value over replacement is at or below zero) or the slot is
+empty. That replacement-relative bar matters: a deep, streamable position like quarterback
+has a high replacement level, so a perfectly good starting QB still shows a low value over
+replacement, and a flat points bar would wrongly flag it as a need. It is not one; in a
+one-quarterback league you start your QB and stream on bye or injury weeks rather than
+trading for another. An upgrade that lands at a true weak spot counts in full, while an
+upgrade at a position the team is already set at counts at a steep discount (currently one
+fifth). The result is that genuine need-fills
+always rank well above marginal upgrades, so the finder stops suggesting a position you
+do not need and leads with deals that fix an actual hole on both sides. The bar and the
+discount are two named constants in the `TRADE_TUNING` block (see "Where the tunable
+weights live" below), easy to retune.
+
+In short: `/trade` judges a deal you bring; `/tradefinder` goes looking for deals that
+fix needs. Use the finder to generate ideas, then drop a specific one into `/trade` for
+the full week-by-week, depth-weighted grade.
+
+### Where the tunable weights live
+
+Every judgment call the trade logic makes is gathered into one labeled block, so there
+is a single place to change how the tool thinks without hunting through the code. The
+trade-decision weights sit in a `TRADE_TUNING` block at the top of
+`discord-bot/worker.js`: the value blend (upside and downside weights and their cap), the
+bench-depth weight and its cap, the letter-grade cutoffs, and the trade finder's need bar,
+set-position discount, minimum lineup gain, fair-value band, and ranking penalties. The one projection-side weight, how
+much the per-game baseline trusts ESPN's projection versus the player's realized form,
+sits in a matching `PROJECTION TUNING` block at the top of
+`ffmonitor/platforms/espn.py`. Everything outside those two blocks (defense-vs-position,
+Vegas, weather, level factors, injury discounts) is a measured input rather than an
+opinion, so it is not something you would tune by hand.
 
 ## 12. Engineering practices
 

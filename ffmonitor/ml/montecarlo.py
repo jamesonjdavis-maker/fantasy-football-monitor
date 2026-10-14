@@ -110,22 +110,40 @@ def _label(r: dict) -> str:
     return "balanced"
 
 
+def _center(player: dict, week: int | None) -> float | None:
+    """The projection the range should be built around. Prefer our own layered
+    current-week line (ros_proj[week]) so the floor/median/ceiling reflect the full
+    model (defense-vs-position, Vegas, weather, the ESPN/form blend), not just
+    ESPN's raw weekly number. Fall back to ESPN's weekly projection, then the
+    season average. Because the simulation scales noise proportionally, a better
+    center sharpens the absolute range without changing its boom/bust shape."""
+    ros = player.get("ros_proj")
+    if ros and week is not None:
+        v = ros.get(str(week))
+        if isinstance(v, (int, float)) and v > 0:
+            return float(v)
+    mu = player.get("proj_points")
+    if mu is None or mu <= 0:
+        mu = player.get("avg_points")
+    return mu
+
+
 def attach_ranges(snapshot: dict) -> None:
     """Mutate the snapshot in place: add proj_floor/median/ceiling/label to every
-    roster player we can simulate. Uses the ESPN weekly projection (proj_points),
-    falling back to season average."""
+    roster player we can simulate. Centers each range on the player's layered
+    current-week projection (see _center), falling back to the ESPN weekly
+    projection and then the season average."""
     for snap in snapshot.get("platforms", {}).values():
         if not isinstance(snap, dict) or not snap.get("enabled"):
             continue
+        week = snap.get("week")
         # Your roster and free agents feed start/sit and waiver value; every
         # team's roster feeds trade evaluation.
         players = list(snap.get("roster", [])) + list(snap.get("free_agents", []))
         for team_players in (snap.get("league_rosters") or {}).values():
             players.extend(team_players)
         for player in players:
-            mu = player.get("proj_points")
-            if mu is None or mu <= 0:
-                mu = player.get("avg_points")
+            mu = _center(player, week)
             sim = simulate(mu, player.get("position"))
             if sim:
                 player["proj_floor"] = sim["floor"]

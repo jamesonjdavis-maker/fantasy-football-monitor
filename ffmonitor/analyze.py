@@ -51,6 +51,13 @@ def _can_fill(bench_pos: str | None, starter: dict) -> bool:
 
 
 def _proj(player: dict) -> float | None:
+    """The single-week point estimate used for start/sit and waiver comparisons.
+    Prefer the Monte Carlo median, which is centered on our layered current-week
+    projection (defense, Vegas, weather, ESPN/form blend) rather than ESPN's raw
+    number; fall back to the raw ESPN weekly projection when no range exists."""
+    median = player.get("proj_median")
+    if median is not None:
+        return median
     return player.get("proj_points")
 
 
