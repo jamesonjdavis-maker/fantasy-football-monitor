@@ -36,10 +36,20 @@ const DEFAULT_MODEL = "openai/gpt-4o-mini";
 // realized form) lives in ffmonitor/platforms/espn.py, which has its own block.
 // ============================================================================
 const TRADE_TUNING = {
-  // --- Player value ---
-  // Upside tilt: a boom player (high ceiling vs his median) is worth up to this
-  // much more per game than a steady player with the same mean. 0 = ignore upside.
-  CEILING_TILT: 0.15,
+  // --- Player value: risk blend of the Monte Carlo range ---
+  // The per-game value starts from the mean projection (which itself already blends
+  // ESPN's projection, realized form, defense, Vegas, weather and injuries) and is
+  // then nudged by the shape of the player's floor/median/ceiling range: upside above
+  // the median adds value, downside below the median subtracts it, both relative to
+  // the median so it is scale-independent. A steady (tight-range) player stays at the
+  // mean; a boom player gains; a bust-risk player loses. The whole nudge is capped so
+  // it stays a tie-breaker, not the main driver. Set both weights to 0 to use the
+  // pure mean, or FLOOR_WEIGHT to 0 to ignore downside.
+  VALUE_BLEND: {
+    CEILING_WEIGHT: 0.15,  // reward upside (ceiling above the median)
+    FLOOR_WEIGHT: 0.15,    // penalize downside (floor below the median)
+    CAP: 0.15,             // keep the total adjustment within +/- this fraction
+  },
 
   // --- Grade: starting-lineup impact (dominant) + a little bench depth ---
   DEPTH_WEIGHT: 0.1,   // how much the change in bench value counts toward the grade
@@ -739,7 +749,7 @@ function startingDeltaWeekly(roster, giveNames, getObjs, slots, afterWeek) {
   // Only weeks still ahead: a trade can't change a week that's already locked.
   if (afterWeek) weeks = weeks.filter((w) => w > afterWeek);
   if (!weeks.length) return null;
-  const wkPts = (p, w) => ({ pos: p.position, pts: (p.ros_proj && typeof p.ros_proj[w] === "number") ? p.ros_proj[w] * upsideFactor(p) : 0 });
+  const wkPts = (p, w) => ({ pos: p.position, pts: (p.ros_proj && typeof p.ros_proj[w] === "number") ? p.ros_proj[w] * blendFactor(p) : 0 });
   let total = 0, worst = null;
   for (const w of weeks) {
     const d = optimalStartingPoints(after.map((p) => wkPts(p, w)), slots)
@@ -800,7 +810,7 @@ function addDepthScore(side, roster, giveNames, getObjs, slots) {
 // Points sitting on the bench: full roster season-avg total minus the optimal
 // starting total. Higher means more quality depth to cover byes and injuries.
 function benchValue(players, slots) {
-  const objs = (players || []).map((p) => ({ pos: p.position, pts: (rosAvg(p) || 0) * upsideFactor(p) }));
+  const objs = (players || []).map((p) => ({ pos: p.position, pts: (rosAvg(p) || 0) * blendFactor(p) }));
   const total = objs.reduce((a, o) => a + o.pts, 0);
   return +(total - optimalStartingPoints(objs, slots)).toFixed(1);
 }
@@ -922,29 +932,35 @@ function rosAvg(p) {
   return +(vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(2);
 }
 
-// Multiplier that tilts a player's value toward his boom upside: 1.0 for a steady
-// player, up to 1 + CEILING_TILT (see TRADE_TUNING) for a high ceiling. It uses the
-// ceiling/median RATIO from the player's Monte Carlo range, so it is scale-
-// independent (it rewards how volatile a player is, not his raw score), only ever
-// adds value (a low ceiling is never penalized below the mean), and is capped at a
-// ceiling of twice the median. The same factor is applied everywhere a trade values
-// a player, so value-over-replacement and the starting-lineup grade stay consistent.
-function upsideFactor(p) {
-  const c = p.proj_ceiling, m = p.proj_median;
-  if (c == null || m == null || !(m > 0)) return 1;
-  const upside = Math.min(1, Math.max(0, c / m - 1));  // 0 (steady) .. 1 (ceiling >= 2x median)
-  return 1 + TRADE_TUNING.CEILING_TILT * upside;
+// Risk multiplier from the shape of a player's Monte Carlo range: 1.0 for a steady
+// (tight-range) player, above 1 when his ceiling towers over his median (boom),
+// below 1 when his floor sits well under it (bust risk). Both the upside and the
+// downside are measured relative to the MEDIAN, so the factor is scale-independent
+// (it reacts to how volatile a player is, not his raw score) and nets the two, then
+// caps the result (see TRADE_TUNING.VALUE_BLEND). The same factor is applied
+// everywhere a trade values a player, so value-over-replacement and the
+// starting-lineup grade stay consistent.
+function blendFactor(p) {
+  const f = p.proj_floor, med = p.proj_median, c = p.proj_ceiling;
+  if (med == null || !(med > 0)) return 1;
+  const up = c != null ? Math.max(0, c / med - 1) : 0;    // how far the ceiling clears the median
+  const down = f != null ? Math.max(0, 1 - f / med) : 0;  // how far the floor falls below it
+  const b = TRADE_TUNING.VALUE_BLEND;
+  const adj = b.CEILING_WEIGHT * up - b.FLOOR_WEIGHT * down;
+  return 1 + Math.max(-b.CAP, Math.min(b.CAP, adj));
 }
 
 // The per-game basis a trade is judged on: rest-of-season projection first
-// (forward-looking is what matters for a trade), then season-to-date average,
-// then the upside tilt. Replacement level is computed on this same basis, so
+// (forward-looking is what matters for a trade), then season-to-date average, then
+// the risk blend of the player's range. The mean already blends ESPN's projection,
+// realized form, defense, Vegas, weather and injuries; the blend factor adds floor
+// and ceiling on top. Replacement level is computed on this same basis, so
 // value-over-replacement stays apples-to-apples.
 function tradeBasis(p) {
   const r = rosAvg(p);
   const base = r != null ? r : seasonAvg(p);
   if (base == null) return null;
-  return +(base * upsideFactor(p)).toFixed(2);
+  return +(base * blendFactor(p)).toFixed(2);
 }
 
 function valueOf(found) {
@@ -969,7 +985,7 @@ function valStr(v) {
 }
 
 // Each player's weekly Monte Carlo floor-to-ceiling range, shown on the trade card
-// so the spread the value tilts toward (see upsideFactor / CEILING_TILT) is visible.
+// so the spread the value blends in (see blendFactor / VALUE_BLEND) is visible.
 // Empty when the player has no range in the snapshot.
 function rangeBracket(p) {
   const f = p.proj_floor, c = p.proj_ceiling;
@@ -1019,7 +1035,7 @@ function tradeVerdict(g, r, teamGive, teamGet, impact) {
 
   const hasRange = [...g.found, ...r.found].some((f) => f.p.proj_floor != null && f.p.proj_ceiling != null);
   if (hasRange) {
-    lines.push("_[floor-ceiling] is each player's weekly range (Monte Carlo); value and grade already tilt a little toward the higher ceiling._");
+    lines.push("_[floor-ceiling] is each player's weekly range (Monte Carlo); value and grade blend the mean with a little upside (ceiling) and downside (floor), on top of all the other factors._");
     lines.push("");
   }
 

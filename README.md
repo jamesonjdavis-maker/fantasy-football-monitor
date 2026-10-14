@@ -437,7 +437,7 @@ Several things were added on top of the original one-for-one version:
   ("you send away" / "you receive", or the two team names) and shows a subtotal under
   each so it's obvious which players the number refers to. Each player's line also shows
   his weekly floor-to-ceiling range in brackets, for example `[7.9-30.5]`, so the spread
-  the value and grade tilt toward (the upside tilt above) is visible at a glance.
+  the value and grade blend in (the risk blend above) is visible at a glance.
 - **Consulting on other managers' trades.** Optional `team_give` and `team_get`
   fields name the two teams involved, so a trade between two other managers is
   judged neutrally by team name instead of assuming one side is mine, and both teams'
@@ -503,23 +503,29 @@ streak, while a big gap between projection and recent play is tempered partway t
 reality. A known multi-week absence (IR, PUP, a suspension) zeroes out the weeks the
 player is expected to miss.
 
-That per-game value also carries a small tilt toward upside. Expected points still do
-almost all of the work, but a player with real boom potential is worth a little more than
-a steady player with the same mean, so the tilt breaks ties toward the higher ceiling. It
-is measured from the player's own Monte Carlo range as the ratio of ceiling to median, so
-it is scale-independent and rewards how volatile a player is rather than his raw score: a
-player whose ceiling is far above his median gets the full nudge, a steady one gets almost
-none, and a low ceiling is never penalized below the mean. The effect is capped (at a
-ceiling of twice the median) and controlled by one tilt constant, currently fifteen
-percent. Because replacement level is computed on this same tilted basis, value over
-replacement stays apples-to-apples; it is the extra lift that high-ceiling players get
-over steady ones that actually moves the comparison. The same factor is applied
-everywhere a trade values a player: the value shown on the card, the finder's rankings,
-and the week-by-week starting-lineup grade itself, where each week's projection is scaled
-by the player's upside factor before the optimal lineup is rebuilt. Because the grade is a
-difference between the lineup before and after the trade, the shared lift cancels and what
-remains is the relative edge a higher-ceiling player gives, so acquiring boom potential
-helps the grade a little and shipping it away costs a little.
+That per-game value is not just the mean, and it is not just the floor or the ceiling:
+it is a risk-adjusted blend of all three. The mean (which, as above, already blends ESPN's
+projection, realized form, defense, Vegas, weather and injuries) is the base, and the
+shape of the player's Monte Carlo range then nudges it. Upside above the median adds value
+and downside below the median subtracts it, each measured as a ratio to the median so the
+nudge is scale-independent and reacts to how volatile a player is rather than his raw
+score. A steady player with a tight range stays right at his mean; a boom player whose
+ceiling towers over his median gains; a bust-risk player whose floor sits well below it
+loses. Because fantasy scoring is right-skewed (ceilings run further above the median than
+floors run below), most players get a small net boost, but a safe high-floor player and a
+volatile low-floor player with the same mean no longer look identical, which was the whole
+point. The two weights (one for upside, one for downside) and the cap that keeps the whole
+adjustment within a modest band are three named constants in the config block, so the
+blend is easy to retune, and setting both weights to zero falls back to the pure mean.
+
+Because replacement level is computed on this same blended basis, value over replacement
+stays apples-to-apples. The same factor is applied everywhere a trade values a player: the
+value shown on the card, the finder's rankings, and the week-by-week starting-lineup grade
+itself, where each week's projection is scaled by the player's blend factor before the
+optimal lineup is rebuilt. Because the grade is a difference between the lineup before and
+after the trade, the shared part cancels and what remains is the relative edge the range
+gives, so acquiring boom potential or safe production helps the grade a little and shipping
+it away costs a little.
 
 ### The plain-English summary and the AI take
 
@@ -577,9 +583,9 @@ the full week-by-week, depth-weighted grade.
 Every judgment call the trade logic makes is gathered into one labeled block, so there
 is a single place to change how the tool thinks without hunting through the code. The
 trade-decision weights sit in a `TRADE_TUNING` block at the top of
-`discord-bot/worker.js`: the upside tilt, the bench-depth weight and its cap, the
-letter-grade cutoffs, and the trade finder's need bar, set-position discount, minimum
-lineup gain, fair-value band, and ranking penalties. The one projection-side weight, how
+`discord-bot/worker.js`: the value blend (upside and downside weights and their cap), the
+bench-depth weight and its cap, the letter-grade cutoffs, and the trade finder's need bar,
+set-position discount, minimum lineup gain, fair-value band, and ranking penalties. The one projection-side weight, how
 much the per-game baseline trusts ESPN's projection versus the player's realized form,
 sits in a matching `PROJECTION TUNING` block at the top of
 `ffmonitor/platforms/espn.py`. Everything outside those two blocks (defense-vs-position,
