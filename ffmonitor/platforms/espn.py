@@ -25,6 +25,18 @@ from ..models import BENCH, IR, STARTER, normalize_player
 _BENCH_SLOTS = {"BE", "Bench"}
 _IR_SLOTS = {"IR"}
 
+# ============================================================================
+# PROJECTION TUNING  -  the judgment call in building a player's per-game
+# baseline: how much to trust ESPN's forward-looking projected average versus the
+# player's own realized form. These two should add up to 1.0. Everything else in
+# the projection (defense-vs-position, Vegas, weather, level factors) is a
+# measured input, not a weight. The trade-DECISION weights (upside tilt, bench
+# depth, grade cutoffs, trade-finder knobs) live separately in
+# discord-bot/worker.js under TRADE_TUNING. See README sections 6 and 11.
+# ============================================================================
+ESPN_PROJ_WEIGHT = 0.75      # trust in ESPN's projected average (role/depth/injury-aware)
+REALIZED_FORM_WEIGHT = 0.25  # trust in the player's own recent scoring form
+
 
 def _slot_bucket(slot_position: str | None) -> str:
     if slot_position in _IR_SLOTS:
@@ -108,15 +120,16 @@ def _realized_form(p: dict) -> float | None:
 def _baseline_pergame(p: dict) -> float | None:
     """A player's per-game scoring baseline for the rest of the season. Blends
     ESPN's forward-looking projected average (role/depth/injury-aware, doesn't lag
-    a slow start) 75% with the player's own realized form 25%, so a big gap between
-    projection and reality gets pulled partway toward what's actually happening,
-    without gutting a genuine bounce-back. Falls back to realized form, then this
-    week's projection, when ESPN's average isn't available."""
+    a slow start) with the player's own realized form (weights in the PROJECTION
+    TUNING block above), so a big gap between projection and reality gets pulled
+    partway toward what's actually happening, without gutting a genuine bounce-back.
+    Falls back to realized form, then this week's projection, when ESPN's average
+    isn't available."""
     proj_avg = p.get("proj_avg") or 0
     if proj_avg > 0:
         form = _realized_form(p)
         if form and form > 0:
-            return round(0.75 * proj_avg + 0.25 * form, 2)
+            return round(ESPN_PROJ_WEIGHT * proj_avg + REALIZED_FORM_WEIGHT * form, 2)
         return round(float(proj_avg), 2)
     form = _realized_form(p)
     if form and form > 0:

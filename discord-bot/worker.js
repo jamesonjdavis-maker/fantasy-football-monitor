@@ -27,6 +27,46 @@
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 const DEFAULT_MODEL = "openai/gpt-4o-mini";
 
+// ============================================================================
+// TRADE TUNING  —  the judgment-call weights behind every trade decision.
+// These are the only "opinion" knobs. Everything else (per-game projections,
+// defense-vs-position, Vegas, weather, injuries) is a measured input, not a
+// weight. Adjust these to change how the tool thinks about trades; see README
+// section 11 for what each one does. The baseline projection blend (ESPN vs
+// realized form) lives in ffmonitor/platforms/espn.py, which has its own block.
+// ============================================================================
+const TRADE_TUNING = {
+  // --- Player value ---
+  // Upside tilt: a boom player (high ceiling vs his median) is worth up to this
+  // much more per game than a steady player with the same mean. 0 = ignore upside.
+  CEILING_TILT: 0.15,
+
+  // --- Grade: starting-lineup impact (dominant) + a little bench depth ---
+  DEPTH_WEIGHT: 0.1,   // how much the change in bench value counts toward the grade
+  DEPTH_CAP: 1.0,      // but never more than this many pts/wk either way
+  // Letter-grade cutoffs in starting pts/wk: the first row whose threshold the
+  // score meets (score >= threshold) wins. Keep them in descending order.
+  GRADE_CUTOFFS: [
+    [4,         "A",  "big upgrade"],
+    [2,         "B",  "clear upgrade"],
+    [0.7,       "B-", "slight upgrade"],
+    [-0.7,      "C",  "about even"],
+    [-2,        "C-", "slight downgrade"],
+    [-4,        "D",  "downgrade"],
+    [-Infinity, "F",  "big downgrade"],
+  ],
+
+  // --- Trade finder: proposing deals (need-first, unlike the analyzer) ---
+  STARTERS: { QB: 1, RB: 2, WR: 2, TE: 1 }, // typical startable depth per position
+  NEED_BAR: 2,            // a weakest starter at/below this value = a real need
+  SET_POS_DISCOUNT: 0.2,  // upgrades at a position you're already set at count this fraction
+  MIN_GAIN: 0.5,          // a proposed deal must improve each team's lineup by at least this
+  FAIR_BAND: 0.25,        // allowed value gap = max(FAIR_FLOOR, this * the bigger side)
+  FAIR_FLOOR: 4,          // ...but always allow at least this absolute value gap
+  GAP_PENALTY: 0.35,      // ranking: how much an unfair value gap hurts a candidate
+  SIZE_PENALTY: 0.4,      // ranking: penalty per player involved (favors tidy deals)
+};
+
 export default {
   async fetch(request, env, ctx) {
     if (request.method === "GET") {
@@ -290,7 +330,6 @@ async function tradeLater(interaction, give, get, league, teamGive, teamGet, env
 }
 
 // --- /tradefinder: suggest mutually useful deals with a specific team ---------
-const _REQUIRED = { QB: 1, RB: 2, WR: 2, TE: 1 };  // typical startable depth
 
 function playerValue(p, repl) {
   const basis = tradeBasis(p);
@@ -318,7 +357,7 @@ function teamShape(by) {
   const weakestStarter = {}, bench = {};
   for (const pos of ["QB", "RB", "WR", "TE"]) {
     const list = by[pos] || [];
-    const req = _REQUIRED[pos];
+    const req = TRADE_TUNING.STARTERS[pos];
     const starters = list.slice(0, req);
     weakestStarter[pos] = starters.length ? starters[starters.length - 1].v : -5;  // empty slot = easy upgrade
     bench[pos] = list.slice(req);  // depth they could deal
@@ -330,7 +369,7 @@ function teamShape(by) {
 // (a real need). Positions above this bar are "set" and the finder won't chase
 // marginal upgrades there (see lineupGain / NEED_BAR).
 function weakSpots(shape) {
-  return ["QB", "RB", "WR", "TE"].filter((pos) => shape.weakestStarter[pos] <= NEED_BAR);
+  return ["QB", "RB", "WR", "TE"].filter((pos) => shape.weakestStarter[pos] <= TRADE_TUNING.NEED_BAR);
 }
 
 function findLeagueForTeam(snap, leagueFilter, partnerQuery) {
@@ -368,9 +407,7 @@ const posSet = (bundle) => new Set(bundle.map((x) => x.pos));
 // at (the "why are you offering me a QB when my QB is fine?" problem). So for each
 // position a bundle brings, we take how far its best piece clears the receiving
 // team's weakest starter there, but a position that is NOT a need (the team's
-// weakest starter is already strong) counts at a steep discount.
-const NEED_BAR = 2;          // weakest-starter value at/below this = a real need
-const SET_POS_DISCOUNT = 0.2; // upgrades at a set position are worth this fraction
+// weakest starter is already strong) counts at a steep discount (see TRADE_TUNING).
 function lineupGain(bundle, receivingShape) {
   const bestByPos = {};
   for (const x of bundle) bestByPos[x.pos] = Math.max(bestByPos[x.pos] ?? -Infinity, x.v);
@@ -378,8 +415,8 @@ function lineupGain(bundle, receivingShape) {
   for (const pos of Object.keys(bestByPos)) {
     const over = bestByPos[pos] - receivingShape.weakestStarter[pos];
     if (over <= 0) continue;
-    const isNeed = receivingShape.weakestStarter[pos] <= NEED_BAR;
-    g += isNeed ? over : over * SET_POS_DISCOUNT;
+    const isNeed = receivingShape.weakestStarter[pos] <= TRADE_TUNING.NEED_BAR;
+    g += isNeed ? over : over * TRADE_TUNING.SET_POS_DISCOUNT;
   }
   return +g.toFixed(1);
 }
@@ -396,20 +433,21 @@ function buildTradeIdeas(mineShape, theirsShape) {
 
   const giveBundles = subsets(mine, 3);  // send up to 3
   const getBundles = subsets(theirs, 2); // receive up to 2
+  const t = TRADE_TUNING;
   const ideas = [];
   for (const get of getBundles) {
     const myGain = lineupGain(get, mineShape);
-    if (myGain < 0.5) continue;                 // the deal must upgrade MY lineup
+    if (myGain < t.MIN_GAIN) continue;          // the deal must upgrade MY lineup
     const gt = sumV(get);
     for (const give of giveBundles) {
       const theirGain = lineupGain(give, theirsShape);
-      if (theirGain < 0.5) continue;            // and THEIRS
+      if (theirGain < t.MIN_GAIN) continue;     // and THEIRS
       const gv = sumV(give);
       const gap = Math.abs(gt - gv);
-      const band = Math.max(4, 0.25 * Math.max(Math.abs(gt), Math.abs(gv), 1));
+      const band = Math.max(t.FAIR_FLOOR, t.FAIR_BAND * Math.max(Math.abs(gt), Math.abs(gv), 1));
       if (gap > band) continue;
       const size = give.length + get.length;
-      const score = myGain + theirGain - gap * 0.35 - size * 0.4;
+      const score = myGain + theirGain - gap * t.GAP_PENALTY - size * t.SIZE_PENALTY;
       ideas.push({ give, get, gv, rv: gt, score });
     }
   }
@@ -744,21 +782,17 @@ function tradeTeamImpact(snap, g, r, teamGive, teamGet) {
   return { give, get };
 }
 
-// How heavily bench depth counts in the grade vs the starting lineup. Small on
-// purpose: the lineup you actually start is what mostly decides a trade. The
-// depth effect is also clamped (below) so an uneven swap of bodies can't swamp
-// the starting signal.
-const DEPTH_WEIGHT = 0.1;
-const DEPTH_CAP = 1.0;  // max pts/wk the depth nudge can add or remove
-
 // Measure the change in a roster's bench depth from the trade and fold it into
 // the grade. Adds `depth` (the clamped pts/wk the trade added to or took from
 // the grade for depth reasons) and `score` (the blended grade input: starting
-// lineup change plus that depth nudge) to a side's weekly-impact object.
+// lineup change plus that depth nudge) to a side's weekly-impact object. The
+// weight and cap are small on purpose (see TRADE_TUNING) so an uneven swap of
+// bodies can't swamp the starting-lineup signal.
 function addDepthScore(side, roster, giveNames, getObjs, slots) {
   const after = (roster || []).filter((p) => !giveNames.has(normName(p.name))).concat(getObjs);
   const raw = benchValue(after, slots) - benchValue(roster, slots);
-  const depth = Math.max(-DEPTH_CAP, Math.min(DEPTH_CAP, +(DEPTH_WEIGHT * raw).toFixed(1)));
+  const cap = TRADE_TUNING.DEPTH_CAP;
+  const depth = Math.max(-cap, Math.min(cap, +(TRADE_TUNING.DEPTH_WEIGHT * raw).toFixed(1)));
   side.depth = depth;
   side.score = +(side.avg + depth).toFixed(1);
 }
@@ -771,17 +805,17 @@ function benchValue(players, slots) {
   return +(total - optimalStartingPoints(objs, slots)).toFixed(1);
 }
 
-// Letter grade from a team's starting-lineup point change (per week).
+// Letter grade from a team's blended score (starting-lineup pts/wk plus the depth
+// nudge). Walks the cutoffs in TRADE_TUNING, taking the first grade the score
+// reaches. A positive cutoff is inclusive and a negative one exclusive, so a score
+// sitting exactly on a negative boundary lands in the lower (worse) grade.
 function tradeGrade(delta) {
-  let grade, word;
-  if (delta >= 4) [grade, word] = ["A", "big upgrade"];
-  else if (delta >= 2) [grade, word] = ["B", "clear upgrade"];
-  else if (delta >= 0.7) [grade, word] = ["B-", "slight upgrade"];
-  else if (delta > -0.7) [grade, word] = ["C", "about even"];
-  else if (delta > -2) [grade, word] = ["C-", "slight downgrade"];
-  else if (delta > -4) [grade, word] = ["D", "downgrade"];
-  else [grade, word] = ["F", "big downgrade"];
-  return { grade, word };
+  const cutoffs = TRADE_TUNING.GRADE_CUTOFFS;
+  for (const [threshold, grade, word] of cutoffs) {
+    if (threshold >= 0 ? delta >= threshold : delta > threshold) return { grade, word };
+  }
+  const last = cutoffs[cutoffs.length - 1];
+  return { grade: last[1], word: last[2] };
 }
 
 // Normalize a name for forgiving matching: lowercase, strip accents and
@@ -888,22 +922,18 @@ function rosAvg(p) {
   return +(vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(2);
 }
 
-// How much a player's boom upside nudges his value. Small on purpose: expected
-// points still drive a trade; this only breaks ties toward the higher ceiling.
-const CEILING_TILT = 0.15;
-
 // Multiplier that tilts a player's value toward his boom upside: 1.0 for a steady
-// player, up to 1 + CEILING_TILT for a high ceiling. It uses the ceiling/median
-// RATIO from the player's Monte Carlo range, so it is scale-independent (it
-// rewards how volatile a player is, not his raw score), only ever adds value (a
-// low ceiling is never penalized below the mean), and is capped at a ceiling of
-// twice the median. The same factor is applied everywhere a trade values a player,
-// so value-over-replacement and the starting-lineup grade stay consistent.
+// player, up to 1 + CEILING_TILT (see TRADE_TUNING) for a high ceiling. It uses the
+// ceiling/median RATIO from the player's Monte Carlo range, so it is scale-
+// independent (it rewards how volatile a player is, not his raw score), only ever
+// adds value (a low ceiling is never penalized below the mean), and is capped at a
+// ceiling of twice the median. The same factor is applied everywhere a trade values
+// a player, so value-over-replacement and the starting-lineup grade stay consistent.
 function upsideFactor(p) {
   const c = p.proj_ceiling, m = p.proj_median;
   if (c == null || m == null || !(m > 0)) return 1;
   const upside = Math.min(1, Math.max(0, c / m - 1));  // 0 (steady) .. 1 (ceiling >= 2x median)
-  return 1 + CEILING_TILT * upside;
+  return 1 + TRADE_TUNING.CEILING_TILT * upside;
 }
 
 // The per-game basis a trade is judged on: rest-of-season projection first

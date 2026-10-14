@@ -563,11 +563,26 @@ at a weak spot counts in full, while an upgrade at a position the team is alread
 counts at a steep discount (currently one fifth). The result is that genuine need-fills
 always rank well above marginal upgrades, so the finder stops suggesting a position you
 do not need and leads with deals that fix an actual hole on both sides. The bar and the
-discount are two named constants at the top of the finder logic, easy to retune.
+discount are two named constants in the `TRADE_TUNING` block (see "Where the tunable
+weights live" below), easy to retune.
 
 In short: `/trade` judges a deal you bring; `/tradefinder` goes looking for deals that
 fix needs. Use the finder to generate ideas, then drop a specific one into `/trade` for
 the full week-by-week, depth-weighted grade.
+
+### Where the tunable weights live
+
+Every judgment call the trade logic makes is gathered into one labeled block, so there
+is a single place to change how the tool thinks without hunting through the code. The
+trade-decision weights sit in a `TRADE_TUNING` block at the top of
+`discord-bot/worker.js`: the upside tilt, the bench-depth weight and its cap, the
+letter-grade cutoffs, and the trade finder's need bar, set-position discount, minimum
+lineup gain, fair-value band, and ranking penalties. The one projection-side weight, how
+much the per-game baseline trusts ESPN's projection versus the player's realized form,
+sits in a matching `PROJECTION TUNING` block at the top of
+`ffmonitor/platforms/espn.py`. Everything outside those two blocks (defense-vs-position,
+Vegas, weather, level factors, injury discounts) is a measured input rather than an
+opinion, so it is not something you would tune by hand.
 
 ## 12. Engineering practices
 
