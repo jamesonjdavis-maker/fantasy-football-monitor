@@ -511,9 +511,13 @@ none, and a low ceiling is never penalized below the mean. The effect is capped 
 ceiling of twice the median) and controlled by one tilt constant, currently fifteen
 percent. Because replacement level is computed on this same tilted basis, value over
 replacement stays apples-to-apples; it is the extra lift that high-ceiling players get
-over steady ones that actually moves the comparison. This tilt feeds the value shown on
-the card and the finder's rankings; the week-by-week starting-lineup grade itself still
-runs on the mean projection.
+over steady ones that actually moves the comparison. The same factor is applied
+everywhere a trade values a player: the value shown on the card, the finder's rankings,
+and the week-by-week starting-lineup grade itself, where each week's projection is scaled
+by the player's upside factor before the optimal lineup is rebuilt. Because the grade is a
+difference between the lineup before and after the trade, the shared lift cancels and what
+remains is the relative edge a higher-ceiling player gives, so acquiring boom potential
+helps the grade a little and shipping it away costs a little.
 
 ### The plain-English summary and the AI take
 

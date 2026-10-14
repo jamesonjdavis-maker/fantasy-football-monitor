@@ -701,7 +701,7 @@ function startingDeltaWeekly(roster, giveNames, getObjs, slots, afterWeek) {
   // Only weeks still ahead: a trade can't change a week that's already locked.
   if (afterWeek) weeks = weeks.filter((w) => w > afterWeek);
   if (!weeks.length) return null;
-  const wkPts = (p, w) => ({ pos: p.position, pts: (p.ros_proj && typeof p.ros_proj[w] === "number") ? p.ros_proj[w] : 0 });
+  const wkPts = (p, w) => ({ pos: p.position, pts: (p.ros_proj && typeof p.ros_proj[w] === "number") ? p.ros_proj[w] * upsideFactor(p) : 0 });
   let total = 0, worst = null;
   for (const w of weeks) {
     const d = optimalStartingPoints(after.map((p) => wkPts(p, w)), slots)
@@ -766,7 +766,7 @@ function addDepthScore(side, roster, giveNames, getObjs, slots) {
 // Points sitting on the bench: full roster season-avg total minus the optimal
 // starting total. Higher means more quality depth to cover byes and injuries.
 function benchValue(players, slots) {
-  const objs = (players || []).map((p) => ({ pos: p.position, pts: rosAvg(p) || 0 }));
+  const objs = (players || []).map((p) => ({ pos: p.position, pts: (rosAvg(p) || 0) * upsideFactor(p) }));
   const total = objs.reduce((a, o) => a + o.pts, 0);
   return +(total - optimalStartingPoints(objs, slots)).toFixed(1);
 }
@@ -888,29 +888,33 @@ function rosAvg(p) {
   return +(vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(2);
 }
 
-// How much a player's boom upside nudges trade value. Small on purpose: expected
+// How much a player's boom upside nudges his value. Small on purpose: expected
 // points still drive a trade; this only breaks ties toward the higher ceiling.
 const CEILING_TILT = 0.15;
 
+// Multiplier that tilts a player's value toward his boom upside: 1.0 for a steady
+// player, up to 1 + CEILING_TILT for a high ceiling. It uses the ceiling/median
+// RATIO from the player's Monte Carlo range, so it is scale-independent (it
+// rewards how volatile a player is, not his raw score), only ever adds value (a
+// low ceiling is never penalized below the mean), and is capped at a ceiling of
+// twice the median. The same factor is applied everywhere a trade values a player,
+// so value-over-replacement and the starting-lineup grade stay consistent.
+function upsideFactor(p) {
+  const c = p.proj_ceiling, m = p.proj_median;
+  if (c == null || m == null || !(m > 0)) return 1;
+  const upside = Math.min(1, Math.max(0, c / m - 1));  // 0 (steady) .. 1 (ceiling >= 2x median)
+  return 1 + CEILING_TILT * upside;
+}
+
 // The per-game basis a trade is judged on: rest-of-season projection first
 // (forward-looking is what matters for a trade), then season-to-date average,
-// then a small tilt toward upside. The tilt rewards boom potential, so a volatile
-// high-ceiling player is worth a little more than a steady one with the same mean.
-// It uses the ceiling/median RATIO, so it is scale-independent (the ceiling is a
-// single-week figure, the base is a rest-of-season mean), only ever adds value
-// (a low ceiling is never penalized below the mean), and is capped at a ceiling of
-// twice the median. Replacement level is computed on this same basis, so
+// then the upside tilt. Replacement level is computed on this same basis, so
 // value-over-replacement stays apples-to-apples.
 function tradeBasis(p) {
   const r = rosAvg(p);
   const base = r != null ? r : seasonAvg(p);
   if (base == null) return null;
-  const c = p.proj_ceiling, m = p.proj_median;
-  if (c != null && m != null && m > 0) {
-    const upside = Math.min(1, Math.max(0, c / m - 1));  // 0 (steady) .. 1 (ceiling >= 2x median)
-    return +(base * (1 + CEILING_TILT * upside)).toFixed(2);
-  }
-  return +(+base).toFixed(2);
+  return +(base * upsideFactor(p)).toFixed(2);
 }
 
 function valueOf(found) {
