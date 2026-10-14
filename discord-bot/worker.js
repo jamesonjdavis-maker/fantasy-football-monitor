@@ -326,9 +326,11 @@ function teamShape(by) {
   return { weakestStarter, bench };
 }
 
-// Positions where a team's weakest starter is weak enough to want an upgrade.
+// Positions where a team's weakest starter is weak enough to want an upgrade
+// (a real need). Positions above this bar are "set" and the finder won't chase
+// marginal upgrades there (see lineupGain / NEED_BAR).
 function weakSpots(shape) {
-  return ["QB", "RB", "WR", "TE"].filter((pos) => shape.weakestStarter[pos] <= 2);
+  return ["QB", "RB", "WR", "TE"].filter((pos) => shape.weakestStarter[pos] <= NEED_BAR);
 }
 
 function findLeagueForTeam(snap, leagueFilter, partnerQuery) {
@@ -359,13 +361,26 @@ const _POS = ["QB", "RB", "WR", "TE"];
 const sumV = (bundle) => +bundle.reduce((a, b) => a + b.v, 0).toFixed(1);
 const posSet = (bundle) => new Set(bundle.map((x) => x.pos));
 
-// How much a bundle would improve the receiving team's lineup: for each position
-// it brings, how far its best piece clears that team's weakest starter there.
+// How much a bundle would improve the receiving team's lineup. This is where the
+// finder differs from the analyzer: the analyzer grades a trade you already have
+// in mind, so it scores any upgrade; the finder PROPOSES trades, so it should
+// chase real needs, not push a marginal upgrade at a position you are already set
+// at (the "why are you offering me a QB when my QB is fine?" problem). So for each
+// position a bundle brings, we take how far its best piece clears the receiving
+// team's weakest starter there, but a position that is NOT a need (the team's
+// weakest starter is already strong) counts at a steep discount.
+const NEED_BAR = 2;          // weakest-starter value at/below this = a real need
+const SET_POS_DISCOUNT = 0.2; // upgrades at a set position are worth this fraction
 function lineupGain(bundle, receivingShape) {
   const bestByPos = {};
   for (const x of bundle) bestByPos[x.pos] = Math.max(bestByPos[x.pos] ?? -Infinity, x.v);
   let g = 0;
-  for (const pos of Object.keys(bestByPos)) g += Math.max(0, bestByPos[pos] - receivingShape.weakestStarter[pos]);
+  for (const pos of Object.keys(bestByPos)) {
+    const over = bestByPos[pos] - receivingShape.weakestStarter[pos];
+    if (over <= 0) continue;
+    const isNeed = receivingShape.weakestStarter[pos] <= NEED_BAR;
+    g += isNeed ? over : over * SET_POS_DISCOUNT;
+  }
   return +g.toFixed(1);
 }
 

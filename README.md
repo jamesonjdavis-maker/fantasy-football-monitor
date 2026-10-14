@@ -445,7 +445,8 @@ Several things were added on top of the original one-for-one version:
   and its surplus depth, then pairs my depth at their weak spot against their depth
   at mine, within a fair value band, and ranks by how much each lineup improves. It
   proposes multi-player packages as well as one-for-ones, and the AI picks the best
-  couple to actually pitch.
+  couple to actually pitch. See "The finder is not the analyzer" below for how it
+  differs from `/trade`.
 
 ### Grading a trade by what you actually start
 
@@ -521,6 +522,34 @@ single message's length limit and get cut off.
 
 It stays honest about its limits: it grades the lineup you would optimally start, not
 the one you actually set each week, and it can't read the other manager's mind.
+
+### The finder is not the analyzer
+
+`/trade` and `/tradefinder` look similar because they share the same projections,
+replacement levels, and value math, but they answer different questions, and they
+should not behave the same way.
+
+`/trade` is an **analyzer**. You already have a specific deal in mind, and it grades
+that deal: it tells you whether this exact set of players going each way helps or hurts
+each team's starting lineup. It scores whatever you hand it, including an upgrade at a
+position you are already strong at, because that is a real (if minor) effect of the
+trade you asked about.
+
+`/tradefinder` is a **proposer**. Nobody asked about a specific deal; it has to invent
+ones worth pitching. If it scored every upgrade the way the analyzer does, it would keep
+offering you a slightly better quarterback when your quarterback is already fine, which
+is useless advice ("why are you telling me to trade for a QB? I don't need a QB"). So the
+finder is deliberately **need-first**. It finds each team's weak spots, where the weakest
+player it would have to start at a position is below a set bar, and an upgrade that lands
+at a weak spot counts in full, while an upgrade at a position the team is already set at
+counts at a steep discount (currently one fifth). The result is that genuine need-fills
+always rank well above marginal upgrades, so the finder stops suggesting a position you
+do not need and leads with deals that fix an actual hole on both sides. The bar and the
+discount are two named constants at the top of the finder logic, easy to retune.
+
+In short: `/trade` judges a deal you bring; `/tradefinder` goes looking for deals that
+fix needs. Use the finder to generate ideas, then drop a specific one into `/trade` for
+the full week-by-week, depth-weighted grade.
 
 ## 12. Engineering practices
 
