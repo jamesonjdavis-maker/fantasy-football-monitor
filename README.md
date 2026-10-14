@@ -475,6 +475,20 @@ optimizes its own lineup, the grades are **not** mirror images: a smart deal whe
 each side trades from a strength into a need can grade well for both, while a lopsided
 one shows the real gap.
 
+On top of that starting-lineup number, the grade folds in a small weight for bench
+depth, because the lineup you start today is not the only thing that matters: injuries
+and byes mean you want enough quality bodies behind your starters. Depth is measured as
+the change in the value of the players a team would **not** start (its full roster value
+minus its optimal starting value). Gaining a useful extra body, as in a two-for-three
+deal, earns a small bonus; consolidating several players into one star, as in a
+three-for-two, takes a small ding for the roster spot and insurance it costs. This depth
+effect is deliberately minor and is **clamped to plus or minus one point per week**, so
+it can only nudge a grade that sits near a boundary; it can never outweigh the starting
+lineup, which is still what mostly decides the trade. The card shows it alongside the
+starters line, for example `starters +1.2 pts/wk (+8.4 over 7 wk, depth +0.8)`. The two
+constants that control it, the depth weight and the cap, live at the top of the trade
+logic and are easy to retune.
+
 The underlying value still uses the rest-of-season projection from the layered model
 (per-game projected points over a replacement-level player at that position, with
 replacement computed on the same basis from the free-agent pool). Because that
@@ -486,15 +500,24 @@ streak, while a big gap between projection and recent play is tempered partway t
 reality. A known multi-week absence (IR, PUP, a suspension) zeroes out the weeks the
 player is expected to miss.
 
-### The AI take
+### The plain-English summary and the AI take
 
-Below the graded card, an AI model writes a short plain-English take on the deal. The
-deterministic card (values, grades, verdict) never depends on the model, so a weak or
-cheap model can only affect the prose, not the numbers. Two guardrails keep the prose
-honest: the prompt tells the model exactly how many players are on each side and
-requires it to name every one, and the code checks the result and re-asks if a player
-was dropped. The take is sent as its own follow-up message so a long card and a long
-take never share a single message's length limit and get cut off.
+Below the graded card, a follow-up message explains the deal in words. It leads with a
+**summary written entirely by code** from the computed numbers: for each team, what it
+adds, what it gives up, its grade, and its lineup change, for example "Staff infection
+upgrades its starting lineup, B (+1.2 starting pts/wk, +0.8 depth). Adds Rice, Odunze,
+and Skattebo; gives up Adams and Dowdle." Because these sentences are assembled straight
+from the data rather than generated, they **cannot** flip who gets whom, call a player a
+team receives a loss, or contradict the grades. This is the source of truth.
+
+Underneath that, an AI model adds a short plain-English take for color. The deterministic
+card and summary never depend on the model, so a weak or cheap model can only affect the
+flavor text, not the numbers or the factual summary above it. Two guardrails keep the AI
+prose honest as well: it is fed each team's own additions and losses with its grade, told
+to treat a received player as a gain and never attribute a player to the wrong team, and
+the code checks the result and re-asks if a player was dropped. The summary and take are
+sent as their own follow-up message so a long card and a long write-up never share a
+single message's length limit and get cut off.
 
 It stays honest about its limits: it grades the lineup you would optimally start, not
 the one you actually set each week, and it can't read the other manager's mind.
