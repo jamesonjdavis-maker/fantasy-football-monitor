@@ -270,9 +270,16 @@ async function tradeLater(interaction, give, get, league, teamGive, teamGet, env
         const impact = tradeTeamImpact(snap, g, r, teamGive, teamGet);
         const card = tradeVerdict(g, r, teamGive, teamGet, impact);
         await editReply(interaction, env, card);
+        // The follow-up leads with a code-written summary (always correct), then
+        // the AI take as color below it. Even if the AI slips, the facts above it
+        // are the source of truth.
+        const summary = deterministicSummary(g, r, teamGive, teamGet, impact);
         const context = rosterContext(snap, g, r, teamGive, teamGet);
         const note = await tradeCommentary(g, r, context, env, teamGive, teamGet, impact).catch(() => "");
-        if (note) await sendFollowup(interaction, env, `💬 ${note}`);
+        const parts = [];
+        if (summary) parts.push(`📋 **The deal, by the numbers:**\n${summary}`);
+        if (note) parts.push(`💬 ${note}`);
+        if (parts.length) await sendFollowup(interaction, env, parts.join("\n\n"));
         return;
       }
     }
@@ -710,11 +717,43 @@ function tradeTeamImpact(snap, g, r, teamGive, teamGet) {
   const giveNames = new Set(g.found.map((f) => normName(f.p.name)));
   const getNames = new Set(r.found.map((f) => normName(f.p.name)));
   const curWeek = plat.week || 0;  // exclude the current/locked week from the impact
-  return {
-    // The give side ships g and receives r; the get side the reverse.
-    give: giveRoster && giveRoster.length ? startingDeltaWeekly(giveRoster, giveNames, r.found.map((f) => f.p), slots, curWeek) : null,
-    get: getRoster && getRoster.length ? startingDeltaWeekly(getRoster, getNames, g.found.map((f) => f.p), slots, curWeek) : null,
-  };
+  const giveGets = r.found.map((f) => f.p), getGets = g.found.map((f) => f.p);
+  // The give side ships g and receives r; the get side the reverse.
+  const give = giveRoster && giveRoster.length ? startingDeltaWeekly(giveRoster, giveNames, giveGets, slots, curWeek) : null;
+  const get = getRoster && getRoster.length ? startingDeltaWeekly(getRoster, getNames, getGets, slots, curWeek) : null;
+  // Fold in a little weight for team depth: the change in bench (non-starter)
+  // value. Consolidating many players into one star costs depth; adding bodies
+  // gains it. Starters still dominate the grade (see DEPTH_WEIGHT).
+  if (give) addDepthScore(give, giveRoster, giveNames, giveGets, slots);
+  if (get) addDepthScore(get, getRoster, getNames, getGets, slots);
+  return { give, get };
+}
+
+// How heavily bench depth counts in the grade vs the starting lineup. Small on
+// purpose: the lineup you actually start is what mostly decides a trade. The
+// depth effect is also clamped (below) so an uneven swap of bodies can't swamp
+// the starting signal.
+const DEPTH_WEIGHT = 0.1;
+const DEPTH_CAP = 1.0;  // max pts/wk the depth nudge can add or remove
+
+// Measure the change in a roster's bench depth from the trade and fold it into
+// the grade. Adds `depth` (the clamped pts/wk the trade added to or took from
+// the grade for depth reasons) and `score` (the blended grade input: starting
+// lineup change plus that depth nudge) to a side's weekly-impact object.
+function addDepthScore(side, roster, giveNames, getObjs, slots) {
+  const after = (roster || []).filter((p) => !giveNames.has(normName(p.name))).concat(getObjs);
+  const raw = benchValue(after, slots) - benchValue(roster, slots);
+  const depth = Math.max(-DEPTH_CAP, Math.min(DEPTH_CAP, +(DEPTH_WEIGHT * raw).toFixed(1)));
+  side.depth = depth;
+  side.score = +(side.avg + depth).toFixed(1);
+}
+
+// Points sitting on the bench: full roster season-avg total minus the optimal
+// starting total. Higher means more quality depth to cover byes and injuries.
+function benchValue(players, slots) {
+  const objs = (players || []).map((p) => ({ pos: p.position, pts: rosAvg(p) || 0 }));
+  const total = objs.reduce((a, o) => a + o.pts, 0);
+  return +(total - optimalStartingPoints(objs, slots)).toFixed(1);
 }
 
 // Letter grade from a team's starting-lineup point change (per week).
@@ -919,19 +958,20 @@ function tradeVerdict(g, r, teamGive, teamGet, impact) {
     const haveImpact = impact && impact.give && impact.get;
     const gD = haveImpact ? impact.give : null;
     const rD = haveImpact ? impact.get : null;
-    const gGrade = tradeGrade(haveImpact ? gD.avg : diff);
-    const rGrade = tradeGrade(haveImpact ? rD.avg : -diff);
-    const detail = (d) => `starters ${sign(d.avg)} pts/wk (${sign(d.total)} over ${d.weeks} wk)`;
+    const gGrade = tradeGrade(haveImpact ? gD.score : diff);
+    const rGrade = tradeGrade(haveImpact ? rD.score : -diff);
+    const depthStr = (d) => d.depth ? `, depth ${sign(d.depth)} pts/wk` : "";
+    const detail = (d) => `starters ${sign(d.avg)} pts/wk (${sign(d.total)} over ${d.weeks} wk${depthStr(d)})`;
     const rough = (d) => (d.worst && d.worst.d <= -3) ? `; roughest Wk ${d.worst.w} (${d.worst.d})` : "";
 
-    lines.push("📊 **Grades — starting-lineup impact, week by week:**");
+    lines.push("📊 **Grades — starting lineup (week by week) + a little depth:**");
     lines.push(`• ${giveName}: **${gGrade.grade}** (${gGrade.word})${haveImpact ? ` — ${detail(gD)}${rough(gD)}` : ""}`);
     lines.push(`• ${getName}: **${rGrade.grade}** (${rGrade.word})${haveImpact ? ` — ${detail(rD)}${rough(rD)}` : ""}`);
     lines.push("");
 
     if (haveImpact) {
       const favored = diff >= 0 ? giveName : getName;
-      lines.push(`_Graded by rebuilding each team's best starting lineup for every remaining week (byes and injuries count as 0 those weeks), so depth you wouldn't start barely moves it. Raw value across all players (over replacement) favors ${favored} by ${Math.abs(diff)}, but the lineup you actually start week to week is what matters. The human side is still your call._`);
+      lines.push(`_Graded mostly on rebuilding each team's best starting lineup for every remaining week (byes and injuries count as 0 those weeks), plus a little weight for bench depth to cover injuries. Raw value across all players (over replacement) favors ${favored} by ${Math.abs(diff)}, but the lineup you actually start week to week is what matters most. The human side is still your call._`);
     } else {
       lines.push("_Graded on value over replacement (couldn't read full rosters to grade the starting lineup here). Projections are rest-of-season points per game. The human side is still your call._");
     }
@@ -949,22 +989,51 @@ function mentionsAllPlayers(note, players) {
   });
 }
 
-// A plain-text summary of the computed grades, so the AI take agrees with the
-// deterministic card instead of inventing its own opposite verdict.
-function gradeSummaryText(g, r, teamGive, teamGet, impact) {
+// Join names as a readable list: "A", "A and B", "A, B, and C".
+function nameList(found) {
+  const ns = found.map((f) => f.p.name);
+  if (!ns.length) return "nobody";
+  if (ns.length === 1) return ns[0];
+  if (ns.length === 2) return `${ns[0]} and ${ns[1]}`;
+  return `${ns.slice(0, -1).join(", ")}, and ${ns[ns.length - 1]}`;
+}
+
+// Code-written, always-correct prose version of the verdict. Because the facts
+// (who adds whom, each grade, each lineup change) come straight from the
+// computed numbers, this can NEVER flip a player's direction or contradict the
+// grades the way a free-form AI take can. The AI take rides below it as color.
+function deterministicSummary(g, r, teamGive, teamGet, impact) {
   const gt = sideTotals(g.found), rt = sideTotals(r.found);
   if (!gt.hasValue || !rt.hasValue) return "";
   const diff = +(rt.value - gt.value).toFixed(1);
   const haveImpact = impact && impact.give && impact.get;
-  const giveName = teamGive || "the give side (you)";
-  const getName = teamGet || "the get side (the other team)";
-  const gAvg = haveImpact ? impact.give.avg : diff;
-  const rAvg = haveImpact ? impact.get.avg : -diff;
-  const gGrade = tradeGrade(gAvg), rGrade = tradeGrade(rAvg);
-  const s = (x) => `${x > 0 ? "+" : ""}${x}`;
-  return `COMPUTED GRADES (change to each team's weekly STARTING lineup; positive = the trade HELPS that team): ` +
-    `${giveName} = ${gGrade.grade} (${gGrade.word}, ${s(gAvg)} starting pts/week); ` +
-    `${getName} = ${rGrade.grade} (${rGrade.word}, ${s(rAvg)} starting pts/week).`;
+  const gScore = haveImpact ? impact.give.score : diff;
+  const rScore = haveImpact ? impact.get.score : -diff;
+  const giveName = teamGive || "You";
+  const getName = teamGet || "The other side";
+  const sign = (x) => `${x > 0 ? "+" : ""}${x}`;
+  const verb = (s) =>
+    s >= 2 ? "upgrades its starting lineup"
+    : s >= 0.7 ? "slightly upgrades its lineup"
+    : s > -0.7 ? "comes out about even"
+    : s > -2 ? "slightly downgrades its lineup"
+    : "downgrades its lineup";
+  // give team adds r / loses g;  get team adds g / loses r.
+  const adds = nameList(r.found), loses = nameList(g.found);
+  const line = (name, score, impactSide, add, lose) => {
+    const grade = tradeGrade(score).grade;
+    let tail = "";
+    if (haveImpact && impactSide) {
+      tail = ` (${sign(impactSide.avg)} starting pts/wk`
+        + (impactSide.depth ? `, ${sign(impactSide.depth)} depth` : "")
+        + ")";
+    }
+    return `• **${name}** ${verb(score)} — **${grade}**${tail}. Adds ${add}; gives up ${lose}.`;
+  };
+  return [
+    line(giveName, gScore, haveImpact ? impact.give : null, adds, loses),
+    line(getName, rScore, haveImpact ? impact.get : null, loses, adds),
+  ].join("\n");
 }
 
 async function tradeCommentary(g, r, context, env, teamGive, teamGet, impact) {
@@ -979,8 +1048,8 @@ async function tradeCommentary(g, r, context, env, teamGive, teamGet, impact) {
   const gt = sideTotals(g.found), rt = sideTotals(r.found);
   const diff = +(rt.value - gt.value).toFixed(1);
   const haveImpact = impact && impact.give && impact.get;
-  const gAvg = haveImpact ? impact.give.avg : diff;
-  const rAvg = haveImpact ? impact.get.avg : -diff;
+  const gAvg = haveImpact ? impact.give.score : diff;
+  const rAvg = haveImpact ? impact.get.score : -diff;
   const gGrade = tradeGrade(gAvg), rGrade = tradeGrade(rAvg);
   const sign = (x) => `${x > 0 ? "+" : ""}${x}`;
   const sideA = teamGive || "Team A (my team)";
