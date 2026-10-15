@@ -68,12 +68,14 @@ const TRADE_TUNING = {
 
   // --- Trade finder: proposing deals (need-first, unlike the analyzer) ---
   STARTERS: { QB: 1, RB: 2, WR: 2, TE: 1 }, // typical startable depth per position
-  // A position is a real need only when your weakest starter's value OVER
-  // REPLACEMENT is at or below this. 0 means "no better than a freely available
-  // player" (or an empty slot). Kept at 0 so a deep, streamable position like QB
-  // is not false-flagged: a fine starting QB has low value over replacement simply
-  // because waiver QBs are plentiful, which is not a reason to trade for one.
-  NEED_BAR: 0,
+  // A position is a real need when your weakest starter there projects below this
+  // fraction of the LEAGUE median starter at that position (or the slot is empty).
+  // The bar is the competitive field, not the waiver wire: waiver level is so low
+  // that even a bad team clears it, which hid real holes; and it is position-fair,
+  // so a deep position like QB (whose starters cluster tightly and high) is only a
+  // need when your QB truly lags the field, not merely because waiver QBs are
+  // plentiful. Lower this to flag fewer needs, raise it toward 1 to flag more.
+  NEED_FRACTION: 0.85,
   SET_POS_DISCOUNT: 0.2,  // upgrades at a position you're already set at count this fraction
   MIN_GAIN: 0.5,          // a proposed deal must improve each team's lineup by at least this
   FAIR_BAND: 0.25,        // allowed value gap = max(FAIR_FLOOR, this * the bigger side)
@@ -354,37 +356,72 @@ function playerValue(p, repl) {
 }
 
 // Group a roster's startable players by position, sorted by value (best first).
+// Each entry carries both value-over-replacement `v` (for gain math) and the raw
+// per-game basis `b` (for the competitive need test).
 function byPositionValued(players, repl) {
   const by = {};
   for (const p of players || []) {
     if (!["QB", "RB", "WR", "TE"].includes(p.position)) continue;
     const v = playerValue(p, repl);
     if (v == null) continue;
-    (by[p.position] = by[p.position] || []).push({ p, v });
+    (by[p.position] = by[p.position] || []).push({ p, v, b: tradeBasis(p) });
   }
   for (const pos of Object.keys(by)) by[pos].sort((a, b) => b.v - a.v);
   return by;
 }
 
+// The competitive bar per position: the median per-game value of the players
+// teams actually START there (each team's top STARTERS[pos]), across the whole
+// league. A need is judged against this, not the waiver replacement level, so a
+// genuinely weak starter is caught even when it still clears the waiver wire, and
+// a deep position like QB (starters bunched near the top) is only flagged when a
+// team truly lags the field.
+function leagueStarterBar(rosters) {
+  const byPos = { QB: [], RB: [], WR: [], TE: [] };
+  for (const players of rosters) {
+    const t = {};
+    for (const p of players || []) {
+      if (!TRADE_TUNING.STARTERS[p.position]) continue;
+      const b = tradeBasis(p);
+      if (b != null) (t[p.position] = t[p.position] || []).push(b);
+    }
+    for (const pos in t) {
+      t[pos].sort((a, b) => b - a);
+      t[pos].slice(0, TRADE_TUNING.STARTERS[pos]).forEach((v) => byPos[pos].push(v));
+    }
+  }
+  const bar = {};
+  for (const pos of ["QB", "RB", "WR", "TE"]) {
+    const a = byPos[pos].sort((x, y) => x - y);
+    bar[pos] = a.length ? a[Math.floor((a.length - 1) / 2)] : 0;  // median starter
+  }
+  return bar;
+}
+
 // Each team by position: the value of its weakest starter (the bar a new player
-// must clear to be an upgrade) and its tradeable bench depth beyond the starters.
-function teamShape(by) {
-  const weakestStarter = {}, bench = {};
+// must clear to be an upgrade), its tradeable bench depth beyond the starters, and
+// whether the position is a genuine need (weakest starter below the league bar, or
+// the slot is unfilled).
+function teamShape(by, bar) {
+  const weakestStarter = {}, bench = {}, need = {};
   for (const pos of ["QB", "RB", "WR", "TE"]) {
     const list = by[pos] || [];
     const req = TRADE_TUNING.STARTERS[pos];
     const starters = list.slice(0, req);
     weakestStarter[pos] = starters.length ? starters[starters.length - 1].v : -5;  // empty slot = easy upgrade
     bench[pos] = list.slice(req);  // depth they could deal
+    const weakestBasis = starters.length ? starters[starters.length - 1].b : null;
+    const competitive = (bar[pos] || 0) * TRADE_TUNING.NEED_FRACTION;
+    need[pos] = starters.length < req || (weakestBasis != null && weakestBasis < competitive);
   }
-  return { weakestStarter, bench };
+  return { weakestStarter, bench, need };
 }
 
-// Positions where a team's weakest starter is weak enough to want an upgrade
-// (a real need). Positions above this bar are "set" and the finder won't chase
-// marginal upgrades there (see lineupGain / NEED_BAR).
+// Positions a team genuinely needs to upgrade (see teamShape / NEED_FRACTION).
+// Positions that are not needs are "set", and the finder won't chase marginal
+// upgrades there (see lineupGain).
 function weakSpots(shape) {
-  return ["QB", "RB", "WR", "TE"].filter((pos) => shape.weakestStarter[pos] <= TRADE_TUNING.NEED_BAR);
+  return ["QB", "RB", "WR", "TE"].filter((pos) => shape.need[pos]);
 }
 
 function findLeagueForTeam(snap, leagueFilter, partnerQuery) {
@@ -421,8 +458,8 @@ const posSet = (bundle) => new Set(bundle.map((x) => x.pos));
 // chase real needs, not push a marginal upgrade at a position you are already set
 // at (the "why are you offering me a QB when my QB is fine?" problem). So for each
 // position a bundle brings, we take how far its best piece clears the receiving
-// team's weakest starter there, but a position that is NOT a need (the team's
-// weakest starter is already strong) counts at a steep discount (see TRADE_TUNING).
+// team's weakest starter there, but a position that is NOT a need (the team is
+// already competitive there) counts at a steep discount (see TRADE_TUNING).
 function lineupGain(bundle, receivingShape) {
   const bestByPos = {};
   for (const x of bundle) bestByPos[x.pos] = Math.max(bestByPos[x.pos] ?? -Infinity, x.v);
@@ -430,7 +467,7 @@ function lineupGain(bundle, receivingShape) {
   for (const pos of Object.keys(bestByPos)) {
     const over = bestByPos[pos] - receivingShape.weakestStarter[pos];
     if (over <= 0) continue;
-    const isNeed = receivingShape.weakestStarter[pos] <= TRADE_TUNING.NEED_BAR;
+    const isNeed = receivingShape.need[pos];
     g += isNeed ? over : over * TRADE_TUNING.SET_POS_DISCOUNT;
   }
   return +g.toFixed(1);
@@ -509,8 +546,11 @@ async function tradeFinderLater(interaction, partnerQuery, league, myTeamQuery, 
     }
     const theirPlayers = (plat.league_rosters || {})[partner] || [];
 
-    const mineShape = teamShape(byPositionValued(myPlayers, repl));
-    const theirsShape = teamShape(byPositionValued(theirPlayers, repl));
+    // Competitive need bar from every team in the league (my roster plus all the
+    // league rosters, which already include the partner's).
+    const bar = leagueStarterBar([plat.roster, ...Object.values(plat.league_rosters || {})]);
+    const mineShape = teamShape(byPositionValued(myPlayers, repl), bar);
+    const theirsShape = teamShape(byPositionValued(theirPlayers, repl), bar);
     const ideas = buildTradeIdeas(mineShape, theirsShape);
 
     const lines = [`🔎 **Trade ideas: ${myName} ↔ ${partner}** (${leagueName})`];

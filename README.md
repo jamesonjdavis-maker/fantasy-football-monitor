@@ -578,15 +578,19 @@ ones worth pitching. If it scored every upgrade the way the analyzer does, it wo
 offering you a slightly better quarterback when your quarterback is already fine, which
 is useless advice ("why are you telling me to trade for a QB? I don't need a QB"). So the
 finder is deliberately **need-first**. It finds each team's weak spots, defined as a
-position where the weakest player it would have to start is no better than a freely
-available waiver player (its value over replacement is at or below zero) or the slot is
-empty. That replacement-relative bar matters: a deep, streamable position like quarterback
-has a high replacement level, so a perfectly good starting QB still shows a low value over
-replacement, and a flat points bar would wrongly flag it as a need. It is not one; in a
+position where the weakest player it would have to start projects below a fraction (85%
+by default) of the **league median starter** at that position, or the slot is empty. The
+bar is the competitive field, not the waiver wire, and that choice matters in both
+directions. Comparing to the waiver level is too lax: waiver players score so little that
+even a bad team clears them everywhere, so a struggling roster would show no needs at all
+even though it plainly has holes. Comparing to the league's actual starters is also what
+keeps a deep position honest: quarterback starters cluster tightly near the top, so a
+serviceable starting QB sits close to the median and is correctly left alone (in a
 one-quarterback league you start your QB and stream on bye or injury weeks rather than
-trading for another. An upgrade that lands at a true weak spot counts in full, while an
-upgrade at a position the team is already set at counts at a steep discount (currently one
-fifth). The result is that genuine need-fills
+trading for another), while running back and receiver starters spread much wider, so a
+genuinely thin starter there falls well short of the median and is flagged. An upgrade
+that lands at a true weak spot counts in full, while an upgrade at a position the team is
+already competitive at counts at a steep discount (currently one fifth). The result is that genuine need-fills
 always rank well above marginal upgrades, so the finder stops suggesting a position you
 do not need and leads with deals that fix an actual hole on both sides. The bar and the
 discount are two named constants in the `TRADE_TUNING` block (see "Where the tunable
@@ -602,8 +606,8 @@ Every judgment call the trade logic makes is gathered into one labeled block, so
 is a single place to change how the tool thinks without hunting through the code. The
 trade-decision weights sit in a `TRADE_TUNING` block at the top of
 `discord-bot/worker.js`: the value blend (upside and downside weights and their cap), the
-bench-depth weight and its cap, the letter-grade cutoffs, and the trade finder's need bar,
-set-position discount, minimum lineup gain, fair-value band, and ranking penalties. The one projection-side weight, how
+bench-depth weight and its cap, the letter-grade cutoffs, and the trade finder's need
+fraction, set-position discount, minimum lineup gain, fair-value band, and ranking penalties. The one projection-side weight, how
 much the per-game baseline trusts ESPN's projection versus the player's realized form,
 sits in a matching `PROJECTION TUNING` block at the top of
 `ffmonitor/platforms/espn.py`. Everything outside those two blocks (defense-vs-position,
