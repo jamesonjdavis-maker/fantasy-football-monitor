@@ -137,27 +137,33 @@ def _baseline_pergame(p: dict) -> float | None:
     return p.get("proj_points")
 
 
-# How a known injury status discounts upcoming weeks: (weeks_affected, factor).
-# Short-term designations (out/doubtful/questionable) touch only the current week,
-# since the player could be back the next. Season-long ones (IR, PUP, suspension)
-# are known multi-week absences, so they zero the minimum stretch a player is out
-# (IR is at least four games); we don't guess an exact return beyond that.
-_INJURY_IMPACT = {
-    "OUT": (1, 0.0),
-    "DOUBTFUL": (1, 0.35),
-    "QUESTIONABLE": (1, 0.9),
-    "SUSPENDED": (2, 0.0),
-    "IR": (4, 0.0),
-    "PUP": (4, 0.0),
+# How a known injury designation discounts upcoming weeks, as a per-week
+# availability-times-effectiveness curve starting at the current week; weeks past
+# the curve are full value (we don't guess a player's health months out). The
+# curve is probability-weighted: QUESTIONABLE players mostly play but not always
+# and often at less than 100%, so the current week is marked down and the next
+# week lightly, rather than treated as a certainty. DOUBTFUL leans toward out.
+# Season-long designations (IR, PUP, suspension) zero the minimum stretch a player
+# is known to miss (IR is at least four games). These are judgment knobs: raise the
+# factors to trust injured players more, lower them to fade them harder.
+_INJURY_CURVE = {
+    "OUT": [0.0],                       # out this week; assume available after
+    "DOUBTFUL": [0.15, 0.75],           # almost certainly out now, limited next
+    "QUESTIONABLE": [0.7, 0.9],         # real doubt now, a little lingering next
+    "SUSPENDED": [0.0, 0.0],
+    "IR": [0.0, 0.0, 0.0, 0.0],
+    "PUP": [0.0, 0.0, 0.0, 0.0],
 }
+_INJURY_STATUSES = set(_INJURY_CURVE)
 
 
 def _apply_ros_projections(player_groups: list[list[dict]], week: int, year: int) -> None:
     """Overwrite each player's ros_proj with a matchup-adjusted weekly line: a
     recency-weighted per-game baseline scaled by opponent defense-vs-position, the
-    Vegas game environment, and weather, byes = 0. A known injury status discounts
-    the current week. Best-effort: if data can't load, players keep their
-    fallback."""
+    Vegas game environment, and weather, byes = 0. A known injury designation
+    discounts the upcoming weeks on a per-week curve (see _INJURY_CURVE), and when
+    ESPN itself projects 0 for a designated player's current week that week is
+    zeroed. Best-effort: if data can't load, players keep their fallback."""
     try:
         from ..ml import matchup
     except Exception:
@@ -200,13 +206,19 @@ def _apply_ros_projections(player_groups: list[list[dict]], week: int, year: int
             )
             if not ros:
                 continue
-            impact = _INJURY_IMPACT.get(p.get("injury_status"))
-            if impact:
-                weeks_out, factor = impact
-                for i in range(weeks_out):
+            status = (p.get("injury_status") or "").upper()
+            curve = _INJURY_CURVE.get(status)
+            if curve:
+                for i, factor in enumerate(curve):
                     key = str(week + i)
                     if key in ros:
                         ros[key] = round(ros[key] * factor, 2)
+            # ESPN zeroing its OWN current-week projection for a designated player
+            # is a strong "not expected to play this week" signal; honor it over our
+            # season-average baseline, which otherwise projects a full game for a
+            # player ESPN expects to sit.
+            if status in _INJURY_STATUSES and not p.get("proj_points") and wk in ros:
+                ros[wk] = 0.0
             p["ros_proj"] = ros
 
 

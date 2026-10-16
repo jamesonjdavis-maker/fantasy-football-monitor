@@ -51,6 +51,22 @@ const TRADE_TUNING = {
     CAP: 0.15,             // keep the total adjustment within +/- this fraction
   },
 
+  // Rest-of-season confidence multiplier for a player carrying an injury
+  // designation. The weekly projection already zeroes the weeks he is known to
+  // miss and docks the near term, but averaged over a whole season that barely
+  // moves his value, so a player who might not play is still valued almost like a
+  // lock. This is the extra, uniform haircut for that uncertainty (a longer
+  // absence, a limited return) that a trade cannot see. 1.0 = no extra discount;
+  // lower = fade injured players harder. Applied to value AND the lineup grade.
+  INJURY_CONFIDENCE: {
+    QUESTIONABLE: 0.90,
+    DOUBTFUL: 0.80,
+    OUT: 0.85,
+    IR: 0.75,
+    PUP: 0.75,
+    SUSPENDED: 1.0,   // a suspension has a known length; the zeroed weeks handle it
+  },
+
   // --- Grade: starting-lineup impact (dominant) + a little bench depth ---
   DEPTH_WEIGHT: 0.1,   // how much the change in bench value counts toward the grade
   DEPTH_CAP: 1.0,      // but never more than this many pts/wk either way
@@ -794,7 +810,7 @@ function startingDeltaWeekly(roster, giveNames, getObjs, slots, afterWeek) {
   // Only weeks still ahead: a trade can't change a week that's already locked.
   if (afterWeek) weeks = weeks.filter((w) => w > afterWeek);
   if (!weeks.length) return null;
-  const wkPts = (p, w) => ({ pos: p.position, pts: (p.ros_proj && typeof p.ros_proj[w] === "number") ? p.ros_proj[w] * blendFactor(p) : 0 });
+  const wkPts = (p, w) => ({ pos: p.position, pts: (p.ros_proj && typeof p.ros_proj[w] === "number") ? p.ros_proj[w] * valueFactor(p) : 0 });
   let total = 0, worst = null;
   for (const w of weeks) {
     const d = optimalStartingPoints(after.map((p) => wkPts(p, w)), slots)
@@ -855,7 +871,7 @@ function addDepthScore(side, roster, giveNames, getObjs, slots) {
 // Points sitting on the bench: full roster season-avg total minus the optimal
 // starting total. Higher means more quality depth to cover byes and injuries.
 function benchValue(players, slots) {
-  const objs = (players || []).map((p) => ({ pos: p.position, pts: (rosAvg(p) || 0) * blendFactor(p) }));
+  const objs = (players || []).map((p) => ({ pos: p.position, pts: (rosAvg(p) || 0) * valueFactor(p) }));
   const total = objs.reduce((a, o) => a + o.pts, 0);
   return +(total - optimalStartingPoints(objs, slots)).toFixed(1);
 }
@@ -995,6 +1011,19 @@ function blendFactor(p) {
   return 1 + Math.max(-b.CAP, Math.min(b.CAP, adj));
 }
 
+// Rest-of-season confidence multiplier for an injury designation (see
+// TRADE_TUNING.INJURY_CONFIDENCE); 1 for a healthy or untagged player.
+function injuryConfidence(p) {
+  return TRADE_TUNING.INJURY_CONFIDENCE[(p.injury_status || "").toUpperCase()] ?? 1;
+}
+
+// The single per-player multiplier applied everywhere a trade values a player:
+// the range risk blend times the injury-confidence haircut. Using one factor in
+// value, replacement, and the lineup grade keeps them all consistent.
+function valueFactor(p) {
+  return blendFactor(p) * injuryConfidence(p);
+}
+
 // The per-game basis a trade is judged on: rest-of-season projection first
 // (forward-looking is what matters for a trade), then season-to-date average, then
 // the risk blend of the player's range. The mean already blends ESPN's projection,
@@ -1005,7 +1034,7 @@ function tradeBasis(p) {
   const r = rosAvg(p);
   const base = r != null ? r : seasonAvg(p);
   if (base == null) return null;
-  return +(base * blendFactor(p)).toFixed(2);
+  return +(base * valueFactor(p)).toFixed(2);
 }
 
 function valueOf(found) {
@@ -1027,6 +1056,16 @@ function rangeStr(p) {
 
 function valStr(v) {
   return v == null ? "" : ` · value ${v > 0 ? "+" : ""}${v}`;
+}
+
+// Known injury designations, so the card can warn that a player's value assumes
+// he returns. ESPN also reports ACTIVE/"" for healthy players, which we ignore.
+const _INJURY_TAGS = { OUT: "OUT", DOUBTFUL: "DOUBTFUL", QUESTIONABLE: "QUESTIONABLE", IR: "IR", PUP: "PUP", SUSPENDED: "SUSP" };
+function injuryTag(p) {
+  return _INJURY_TAGS[(p.injury_status || "").toUpperCase()] ? ` ⚠️ ${_INJURY_TAGS[(p.injury_status || "").toUpperCase()]}` : "";
+}
+function isInjured(p) {
+  return !!_INJURY_TAGS[(p.injury_status || "").toUpperCase()];
 }
 
 // Each player's weekly Monte Carlo floor-to-ceiling range, shown on the trade card
@@ -1054,7 +1093,7 @@ function sideLines(label, side) {
   const lines = [`**${label}:**`];
   for (const f of side.found) {
     const team = f.p.pro_team ? ", " + f.p.pro_team : "";
-    lines.push(`• ${f.p.name} (${f.p.position}${team}) — ${rangeStr(f.p)}${rangeBracket(f.p)}${valStr(valueOf(f))}`);
+    lines.push(`• ${f.p.name} (${f.p.position}${team})${injuryTag(f.p)} — ${rangeStr(f.p)}${rangeBracket(f.p)}${valStr(valueOf(f))}`);
   }
   for (const name of side.missing) lines.push(`• ⚠️ couldn't find "${name}"`);
   return lines;
@@ -1081,6 +1120,13 @@ function tradeVerdict(g, r, teamGive, teamGet, impact) {
   const hasRange = [...g.found, ...r.found].some((f) => f.p.proj_floor != null && f.p.proj_ceiling != null);
   if (hasRange) {
     lines.push("_[floor-ceiling] is each player's weekly range (Monte Carlo); value and grade blend the mean with a little upside (ceiling) and downside (floor), on top of all the other factors._");
+    lines.push("");
+  }
+
+  const hurt = [...g.found, ...r.found].filter((f) => isInjured(f.p));
+  if (hurt.length) {
+    const names = hurt.map((f) => `${f.p.name} (${_INJURY_TAGS[(f.p.injury_status || "").toUpperCase()]})`).join(", ");
+    lines.push(`⚠️ Injury watch: ${names}. The current week is docked (zeroed if ESPN projects him out), but the rest-of-season value still assumes he returns and plays. The model can't know his timeline, so weigh this yourself.`);
     lines.push("");
   }
 

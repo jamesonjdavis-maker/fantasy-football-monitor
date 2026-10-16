@@ -254,9 +254,13 @@ come from the NFL history data:
 - **Weather:** wind, precipitation, and extreme cold at outdoor stadiums cut into
   the passing game, pass catchers more than backs, using the free Open-Meteo
   forecast for games inside its window. Domes and far-out games are untouched.
-- **Injury:** a known OUT, IR, PUP, or suspension zeroes the current week; doubtful
-  and questionable take a haircut. Status only speaks to the current week, so that
-  is the only week it touches.
+- **Injury:** a known designation discounts the upcoming weeks on a per-week curve,
+  not just one week. OUT zeroes this week; DOUBTFUL and QUESTIONABLE mark down this
+  week hard and the next one lightly (a questionable player usually plays, but not
+  always and sometimes limited); IR, PUP, and suspension zero the minimum stretch the
+  player is known to miss. On top of that, if ESPN itself projects zero for a
+  designated player's current week (its own "expected to sit" signal), that week is
+  zeroed rather than filled from the season average.
 - **Bye weeks** are set to zero.
 
 Two honesty points matter. First, these are clearly **labeled as the tool's own
@@ -539,6 +543,20 @@ after the trade, the shared part cancels and what remains is the relative edge t
 gives, so acquiring boom potential or safe production helps the grade a little and shipping
 it away costs a little.
 
+One more adjustment handles injuries, because a trade is rest-of-season and the weekly
+projection alone does not express the real problem. The weekly line already zeroes the
+weeks a player is known to miss and docks the near term, but averaged over a whole season
+that barely moves a player's value, so someone who might not play keeps looking almost like
+a lock. On top of that, then, a player carrying an injury designation takes a uniform
+rest-of-season confidence haircut: a questionable player a little, doubtful more, and a
+longer-term IR or PUP designation more still, applied to both his value and his lineup
+grade. It is a tunable set of multipliers in the config block. This is deliberately a
+blunt, honest instrument: the tool cannot know whether a hurt player returns in one week or
+six, so rather than pretend, it fades him and says so. Any traded player with a live
+designation is flagged on the card with an injury-watch line that spells out that the
+rest-of-season value still assumes he comes back, so the call is yours to make with eyes
+open.
+
 ### The plain-English summary and the AI take
 
 Below the graded card, a follow-up message explains the deal in words. It leads with a
@@ -606,7 +624,7 @@ Every judgment call the trade logic makes is gathered into one labeled block, so
 is a single place to change how the tool thinks without hunting through the code. The
 trade-decision weights sit in a `TRADE_TUNING` block at the top of
 `discord-bot/worker.js`: the value blend (upside and downside weights and their cap), the
-bench-depth weight and its cap, the letter-grade cutoffs, and the trade finder's need
+injury-confidence multipliers, the bench-depth weight and its cap, the letter-grade cutoffs, and the trade finder's need
 fraction, set-position discount, minimum lineup gain, fair-value band, and ranking penalties. The one projection-side weight, how
 much the per-game baseline trusts ESPN's projection versus the player's realized form,
 sits in a matching `PROJECTION TUNING` block at the top of
