@@ -448,8 +448,8 @@ basis from the free-agent pool, so the comparison stays apples-to-apples.
 
 Several things were added on top of the original one-for-one version:
 
-- **Multiple players per side.** Each side takes up to three players (`give1..give3`,
-  `get1..get3`), so 2-for-1 and 3-for-2 deals work. The card labels each side clearly
+- **Multiple players per side.** Each side takes up to five players (`give1..give5`,
+  `get1..get5`), so 2-for-1 up to 5-for-5 deals work. The card labels each side clearly
   ("you send away" / "you receive", or the two team names) and shows a subtotal under
   each so it's obvious which players the number refers to. Each player's line also shows
   his weekly floor-to-ceiling range in brackets, for example `[7.9-30.5]`, so the spread
@@ -462,7 +462,7 @@ Several things were added on top of the original one-for-one version:
   help both sides. It measures each team's weak spots (a thin starter at a position)
   and its surplus depth, then pairs my depth at their weak spot against their depth
   at mine, within a fair value band, and ranks by how much each lineup improves. It
-  proposes multi-player packages as well as one-for-ones, and the AI picks the best
+  proposes multi-player packages (up to five per side) as well as one-for-ones, and the AI picks the best
   couple to actually pitch. See "The finder is not the analyzer" below for how it
   differs from `/trade`.
 

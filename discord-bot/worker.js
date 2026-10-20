@@ -35,6 +35,14 @@ const DEFAULT_MODEL = "openai/gpt-4o-mini";
 // section 11 for what each one does. The baseline projection blend (ESPN vs
 // realized form) lives in ffmonitor/platforms/espn.py, which has its own block.
 // ============================================================================
+// Most players either side of a trade can carry, in /trade and /tradefinder.
+// register.js builds the same number of give/get slots; keep the two in step.
+const MAX_PER_SIDE = 5;
+const TRADE_SLOTS = {
+  give: Array.from({ length: MAX_PER_SIDE }, (_, i) => `give${i + 1}`),
+  get: Array.from({ length: MAX_PER_SIDE }, (_, i) => `get${i + 1}`),
+};
+
 const TRADE_TUNING = {
   // --- Player value: risk blend of the Monte Carlo range ---
   // The per-game value starts from the mean projection (which itself already blends
@@ -135,11 +143,11 @@ export default {
         return json({ type: 5 });
       }
 
-      // /trade give1/get1 [give2/get2/give3/get3] [league] — up to 3 per side.
+      // /trade give1/get1 [give2..give5/get2..get5] [league] — up to 5 per side.
       if (name === "trade") {
         const join = (ns) => ns.map((n) => opts.find((o) => o.name === n)?.value).filter(Boolean).join(", ");
-        const give = join(["give1", "give2", "give3"]);
-        const get = join(["get1", "get2", "get3"]);
+        const give = join(TRADE_SLOTS.give);
+        const get = join(TRADE_SLOTS.get);
         const league = (opts.find((o) => o.name === "league")?.value || "").toString();
         const teamGive = (opts.find((o) => o.name === "team_give")?.value || "").toString();
         const teamGet = (opts.find((o) => o.name === "team_get")?.value || "").toString();
@@ -220,7 +228,7 @@ async function autocomplete(interaction, env, ctx) {
         : null;
     const teamOpt = side ? (opts.find((o) => o.name === side)?.value || "").toString() : "";
     const partial = String(focused.value || "").trim();
-    const playerSlots = new Set(["give1", "give2", "give3", "get1", "get2", "get3"]);
+    const playerSlots = new Set([...TRADE_SLOTS.give, ...TRADE_SLOTS.get]);
     const exclude = new Set(
       opts
         .filter((o) => o.name !== focused.name && playerSlots.has(o.name))
@@ -342,7 +350,11 @@ async function tradeLater(interaction, give, get, league, teamGive, teamGet, env
         // so the two never share Discord's 2000-char limit and get truncated.
         const impact = tradeTeamImpact(snap, g, r, teamGive, teamGet);
         const card = tradeVerdict(g, r, teamGive, teamGet, impact);
-        await editReply(interaction, env, card);
+        // A 5-for-5 card can run past one message, so spill the rest into
+        // follow-ups instead of cutting the grades off.
+        const [first, ...rest] = splitMessage(card);
+        await editReply(interaction, env, first);
+        for (const chunk of rest) await sendFollowup(interaction, env, chunk);
         // The follow-up leads with a code-written summary (always correct), then
         // the AI take as color below it. Even if the AI slips, the facts above it
         // are the source of truth.
@@ -352,7 +364,7 @@ async function tradeLater(interaction, give, get, league, teamGive, teamGet, env
         const parts = [];
         if (summary) parts.push(`📋 **The deal, by the numbers:**\n${summary}`);
         if (note) parts.push(`💬 ${note}`);
-        if (parts.length) await sendFollowup(interaction, env, parts.join("\n\n"));
+        if (parts.length) for (const chunk of splitMessage(parts.join("\n\n"))) await sendFollowup(interaction, env, chunk);
         return;
       }
     }
@@ -489,8 +501,8 @@ function lineupGain(bundle, receivingShape) {
   return +g.toFixed(1);
 }
 
-// Build mutually useful packages: give 1-3 of my bench depth for 1-2 of theirs,
-// value-fair, where BOTH lineups get a real upgrade. Covers 1-for-1 up to 3-for-2.
+// Build mutually useful packages: give 1-5 of my bench depth for 1-5 of theirs,
+// value-fair, where BOTH lineups get a real upgrade. Covers 1-for-1 up to 5-for-5.
 function buildTradeIdeas(mineShape, theirsShape) {
   const pool = (shape) => {
     const out = [];
@@ -499,8 +511,8 @@ function buildTradeIdeas(mineShape, theirsShape) {
   };
   const mine = pool(mineShape), theirs = pool(theirsShape);
 
-  const giveBundles = subsets(mine, 3);  // send up to 3
-  const getBundles = subsets(theirs, 2); // receive up to 2
+  const giveBundles = subsets(mine, MAX_PER_SIDE);  // send up to 5
+  const getBundles = subsets(theirs, MAX_PER_SIDE); // receive up to 5
   const t = TRADE_TUNING;
   const ideas = [];
   for (const get of getBundles) {
@@ -1282,6 +1294,22 @@ async function editReply(interaction, env, text) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ content: (text || "").slice(0, 1900) || "(nothing to show)" }),
   });
+}
+
+// Split text into chunks that fit one Discord message, breaking at a blank line
+// where possible, else at a line break, else hard at the limit.
+function splitMessage(text, limit = 1900) {
+  const chunks = [];
+  let rest = String(text || "");
+  while (rest.length > limit) {
+    let cut = rest.lastIndexOf("\n\n", limit);
+    if (cut < limit / 2) cut = rest.lastIndexOf("\n", limit);
+    if (cut < limit / 2) cut = limit;
+    chunks.push(rest.slice(0, cut).trimEnd());
+    rest = rest.slice(cut).replace(/^\n+/, "");
+  }
+  if (rest) chunks.push(rest);
+  return chunks.length ? chunks : [""];
 }
 
 // Send an extra message after the first reply (its own 2000-char budget).
