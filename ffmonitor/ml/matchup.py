@@ -189,6 +189,12 @@ def coverage(year: int, through_week: int) -> dict:
     }
 
 
+def team_game_dates(team: str | None, year: int) -> dict[int, str]:
+    """{week: game date (YYYY-MM-DD)} for one team's regular season."""
+    games = _schedule_map(year).get(_norm_team(team) or "") or {}
+    return {wk: g.get("date") or "" for wk, g in games.items()}
+
+
 def build_ros(
     base: float | None,
     position: str | None,

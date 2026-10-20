@@ -156,6 +156,33 @@ _INJURY_CURVE = {
 }
 _INJURY_STATUSES = set(_INJURY_CURVE)
 
+# The fantasy API only says OUT/IR, not for how long, so a six-week hamstring and
+# a one-week ankle look the same. ESPN's athlete endpoint carries the expected
+# return date from its injury report; when there is one, every game before it
+# projects 0 (on top of the curve above).
+_ATHLETE_URL = "https://site.web.api.espn.com/apis/common/v3/sports/football/nfl/athletes/{}"
+_return_dates: dict[str, str | None] = {}
+
+
+def _return_date(player_id: Any) -> str | None:
+    """ESPN's expected return date (YYYY-MM-DD) for an injured player, or None.
+    Best-effort and cached per run: any failure just means no date."""
+    key = str(player_id or "")
+    if not key.isdigit():
+        return None
+    if key not in _return_dates:
+        date = None
+        try:
+            import requests
+            resp = requests.get(_ATHLETE_URL.format(key), timeout=10)
+            injuries = (resp.json().get("athlete") or {}).get("injuries") or []
+            if injuries:
+                date = ((injuries[0].get("details") or {}).get("returnDate") or "")[:10] or None
+        except Exception:
+            date = None
+        _return_dates[key] = date
+    return _return_dates[key]
+
 
 def _apply_ros_projections(player_groups: list[list[dict]], week: int, year: int) -> None:
     """Overwrite each player's ros_proj with a matchup-adjusted weekly line: a
@@ -219,6 +246,13 @@ def _apply_ros_projections(player_groups: list[list[dict]], week: int, year: int
             # player ESPN expects to sit.
             if status in _INJURY_STATUSES and not p.get("proj_points") and wk in ros:
                 ros[wk] = 0.0
+            if status in _INJURY_STATUSES:
+                back = _return_date(p.get("id"))
+                if back:
+                    games = matchup.team_game_dates(p.get("pro_team"), year)
+                    for key in ros:
+                        if (games.get(int(key)) or "9999") < back:
+                            ros[key] = 0.0
             p["ros_proj"] = ros
 
 
