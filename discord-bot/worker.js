@@ -1471,11 +1471,15 @@ function summarize(snap) {
     const bench = roster.filter((p) => p.slot === "bench");
     if (starters.length) lines.push("  Starters: " + starters.map(fmtPlayer).join("; "));
     if (bench.length) lines.push("  Bench: " + bench.map(fmtPlayer).join("; "));
-    const fas = (s.free_agents || [])
-      .slice()
-      .sort((a, b) => (b.proj_points || 0) - (a.proj_points || 0))
-      .slice(0, 8);
-    if (fas.length) lines.push("  Top free agents: " + fas.map(fmtPlayer).join("; "));
+    // Top free agents per position, not overall: an overall top 8 is all QBs and
+    // kickers (they project highest), which hides every RB/WR/TE pickup.
+    const faByPos = {};
+    for (const p of (s.free_agents || []).slice().sort((a, b) => (b.proj_points || 0) - (a.proj_points || 0))) {
+      const list = (faByPos[p.position] ||= []);
+      if (list.length < (["QB", "RB", "WR", "TE"].includes(p.position) ? 3 : 1)) list.push(p);
+    }
+    const fas = Object.values(faByPos).flat();
+    if (fas.length) lines.push("  Top free agents by position: " + fas.map(fmtPlayer).join("; "));
   }
   return lines.join("\n").trim();
 }
